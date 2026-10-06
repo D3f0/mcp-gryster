@@ -36,15 +36,19 @@ _ABSOLUTE_PATH = re.compile(r"(?<![\w.])/(?:[^\s,;]+/)*[^\s,;]*")
 _WINDOWS_PATH = re.compile(r"(?i)(?<![\w])(?:[a-z]:\\)(?:[^\s,;]+\\)*[^\s,;]*")
 
 
-class McpGrysterError(BaseModel, Exception):
-    """Safe, serializable error returned across the MCP boundary."""
-
+class _ErrorData(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     code: ErrorCode
     message: str
     details: dict[str, Any] | None = None
     correlation_id: str | None = Field(default=None, min_length=1)
+
+
+class McpGrysterError(Exception):
+    """Safe, throwable error with Pydantic-validated structured fields."""
+
+    __slots__ = ("_data",)
 
     def __init__(
         self,
@@ -54,14 +58,44 @@ class McpGrysterError(BaseModel, Exception):
         *,
         correlation_id: str | None = None,
     ) -> None:
-        BaseModel.__init__(
-            self,
+        data = _ErrorData(
             code=code,
             message=message,
             details=details,
             correlation_id=correlation_id,
         )
-        Exception.__init__(self, message)
+        object.__setattr__(self, "_data", data)
+        super().__init__(message)
+
+    @property
+    def code(self) -> ErrorCode:
+        return self._data.code
+
+    @property
+    def message(self) -> str:
+        return self._data.message
+
+    @property
+    def details(self) -> dict[str, Any] | None:
+        return self._data.details
+
+    @property
+    def correlation_id(self) -> str | None:
+        return self._data.correlation_id
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name in {"code", "message", "details", "correlation_id"}:
+            setattr(self._data, name, value)
+            return
+        object.__setattr__(self, name, value)
+
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        """Return the structured public payload."""
+        return self._data.model_dump(**kwargs)
+
+    def model_dump_json(self, **kwargs: Any) -> str:
+        """Serialize the structured public payload as JSON."""
+        return self._data.model_dump_json(**kwargs)
 
     def __str__(self) -> str:
         return self.message

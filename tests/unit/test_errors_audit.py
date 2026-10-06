@@ -55,6 +55,28 @@ def test_public_error_maps_local_failures_without_input(
     assert "private input" not in error.model_dump_json()
 
 
+def test_mcp_error_can_be_raised_caught_and_serialized() -> None:
+    error = McpGrysterError(
+        "REVISION_CONFLICT",
+        "Project revision does not match",
+        {"expected_revision": "abc"},
+    )
+
+    with pytest.raises(McpGrysterError) as caught:
+        raise error
+
+    assert caught.value is error
+    assert caught.value.code == "REVISION_CONFLICT"
+    assert caught.value.message == "Project revision does not match"
+    assert caught.value.details == {"expected_revision": "abc"}
+    assert json.loads(caught.value.model_dump_json()) == {
+        "code": "REVISION_CONFLICT",
+        "message": "Project revision does not match",
+        "details": {"expected_revision": "abc"},
+        "correlation_id": None,
+    }
+
+
 def test_mcp_error_is_frozen_and_rejects_unstable_codes() -> None:
     with pytest.raises(ValidationError):
         McpGrysterError("UNKNOWN", "No")  # type: ignore[arg-type]

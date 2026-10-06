@@ -41,3 +41,17 @@ uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/
 
 - Authentication is represented as a configured bearer token (`MCP_GRYSTER_HTTP_AUTH_TOKEN`, with `MCP_GRYSTER_HTTP_BEARER_TOKEN` accepted as an alternate input); the later HTTP composition task must enforce it on incoming requests.
 - Filesystem symlink safety is checked immediately before replacement and uses `O_NOFOLLOW` for temporary creation; fully race-free directory traversal would require platform-specific directory-descriptor APIs throughout.
+
+## Controller collection-failure fix
+
+- Root cause: Python 3.14 rejects the incompatible C-level instance layouts from direct `BaseModel` and `Exception` multiple inheritance before test collection can begin.
+- Regression coverage was added first for constructing, raising, catching, inspecting, and JSON-serializing `McpGrysterError`.
+- `McpGrysterError` now inherits only from `Exception` and composes a frozen private Pydantic model. Its constructor and public structured fields remain unchanged, as do `model_dump` and `model_dump_json` serialization.
+- Structured field assignment delegates to the frozen model and therefore continues to raise `ValidationError`; invalid stable codes remain Pydantic validation failures.
+- No checks were executed per controller instruction. Expected verification remains:
+
+```sh
+uv run pytest tests/unit/test_config.py tests/unit/test_errors_audit.py -v
+uv run ruff check src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
+uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
+```
