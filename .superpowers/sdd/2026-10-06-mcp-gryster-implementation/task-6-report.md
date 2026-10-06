@@ -58,3 +58,8 @@ uv run mypy src/mcp_gryster/widget
 - Project create/update publication now holds a project-scoped atomic lockfile across pointer comparison through pointer replacement. Acquisition is bounded; stale locks require both age beyond 30 seconds and a dead owner PID, while fresh empty lockfiles are treated as in-progress acquisition. Lock cleanup verifies inode identity.
 - Project creation now writes the starter document at the validated `src/<metadata.entrypoint>` path, including nested entrypoints.
 - Per controller instruction, no checks were executed. Controller should rerun the Task 6 pytest, Ruff, and strict mypy commands recorded above.
+
+## Controller import-order fix
+
+- Controller verified 45/45 Task 6 tests passing before this edit.
+- Sorted the `contextlib` import after `collections.abc` to resolve Ruff I001. No checks were executed after this import-only change, per controller instruction.

@@ -1,7 +1,6 @@
 """Atomic immutable storage for authored widget project revisions."""
 
 from __future__ import annotations
-from contextlib import contextmanager
 
 import hashlib
 import json
@@ -11,6 +10,7 @@ import shutil
 import stat
 import time
 from collections.abc import Generator, Iterable, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
 from typing import Any, overload
