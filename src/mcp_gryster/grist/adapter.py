@@ -85,11 +85,8 @@ class GristAdapter:
             call_arguments = self._bind_arguments(
                 dispatch_spec, signature, annotations, arguments
             )
-            client = self._api_factory(config=self._client_config())
-            operation = getattr(client, dispatch_spec.name)
             result = await asyncio.to_thread(
-                self._execute,
-                operation,
+                self._execute_call,
                 dispatch_spec,
                 call_arguments,
             )
@@ -166,8 +163,12 @@ class GristAdapter:
                 ) from exc
         if spec.result_kind == "file":
             for name, annotation in annotations.items():
-                if name in validated and validated[name] is None and _allows_path(annotation):
-                    validated[name] = self._workspace_path(f"{spec.name}-{uuid4().hex}.bin")
+                if name not in validated or not _allows_path(annotation):
+                    continue
+                logical_path = validated[name]
+                if logical_path is None:
+                    logical_path = self._workspace_path(f"{spec.name}.bin")
+                validated[name] = self._owned_output_path(logical_path)
         return validated
 
     def _validate_value(self, name: str, value: Any, annotation: Any) -> Any:
@@ -253,6 +254,19 @@ class GristAdapter:
         resolved.parent.mkdir(parents=True, exist_ok=True)
         return resolved
 
+    def _owned_output_path(self, logical_path: Path) -> Path:
+        """Allocate an adapter-owned path while preserving the logical artifact name."""
+        output = (
+            self._settings.workspace_root
+            / ".grist-downloads"
+            / uuid4().hex
+            / logical_path.name
+        ).resolve()
+        if not output.is_relative_to(self._settings.workspace_root.resolve()):
+            raise McpGrysterError("PATH_NOT_ALLOWED", "File path is not allowed")
+        output.parent.mkdir(parents=True)
+        return output
+
     def _client_config(self) -> dict[str, str]:
         config = {
             key: value
@@ -267,25 +281,33 @@ class GristAdapter:
         config["GRIST_SAFEMODE"] = "N" if writable else "Y"
         return config
 
-    def _execute(
+    def _execute_call(
         self,
-        operation: Callable[..., Any],
         spec: MethodSpec,
         arguments: dict[str, Any],
     ) -> GristCallResult:
-        raw = operation(**arguments)
-        data: Any
-        if spec.result_kind == "paginated":
-            status_code, data = self._consume_pages(raw)
-        else:
-            status_code, data = self._split_response(raw)
-        self._ensure_success(status_code)
+        client = self._api_factory(config=self._client_config())
+        operation = getattr(client, spec.name)
+        try:
+            raw = operation(**arguments)
+            data: Any
+            if spec.result_kind == "paginated":
+                status_code, data = self._consume_pages(raw)
+            else:
+                status_code, data = self._split_response(raw)
+            self._ensure_success(status_code)
 
-        if spec.result_kind == "file":
-            data = self._persist_output_file(arguments, data)
-        elif spec.result_kind == "binary" or isinstance(data, (bytes, bytearray, memoryview)):
-            data = self._persist_bytes(spec.name, bytes(data))
-        return GristCallResult(status_code=status_code, data=self._normalize(data))
+            if spec.result_kind == "file":
+                data = self._persist_output_file(arguments, data)
+            elif spec.result_kind == "binary" or isinstance(
+                data, (bytes, bytearray, memoryview)
+            ):
+                data = self._persist_bytes(spec.name, data)
+            return GristCallResult(status_code=status_code, data=self._normalize(data))
+        except Exception:
+            if spec.result_kind == "file":
+                self._discard_output_files(arguments)
+            raise
 
     def _consume_pages(self, value: Any) -> tuple[int, list[Any]]:
         if not isinstance(value, Iterator):
@@ -345,19 +367,47 @@ class GristAdapter:
         paths = [value for value in arguments.values() if isinstance(value, Path)]
         if len(paths) != 1 or not paths[0].is_file():
             if isinstance(response, (bytes, bytearray, memoryview)):
-                return self._persist_bytes("download", bytes(response))
+                return self._persist_bytes("download", response)
             raise McpGrysterError("GRIST_REQUEST_FAILED", "The Grist request failed")
         output = paths[0]
+        limit = min(self._settings.max_file_bytes, self._settings.max_aggregate_bytes)
         try:
-            artifact = self._artifacts.put_bytes("grist", output.name, output.read_bytes())
+            if output.stat().st_size > limit:
+                raise self._limit_error()
+            with output.open("rb") as stream:
+                data = stream.read(limit + 1)
+            if len(data) > limit:
+                raise self._limit_error()
+            artifact = self._artifacts.put_bytes("grist", output.name, data)
         finally:
             output.unlink(missing_ok=True)
+            output.parent.rmdir()
         return self._artifact_data(artifact.name, artifact.size_bytes)
 
-    def _persist_bytes(self, stem: str, data: bytes) -> dict[str, Any]:
+    @staticmethod
+    def _discard_output_files(arguments: Mapping[str, Any]) -> None:
+        for value in arguments.values():
+            if not isinstance(value, Path):
+                continue
+            value.unlink(missing_ok=True)
+            try:
+                value.parent.rmdir()
+            except OSError:
+                pass
+
+    def _persist_bytes(
+        self, stem: str, data: bytes | bytearray | memoryview
+    ) -> dict[str, Any]:
+        size = len(data)
+        if size > self._settings.max_file_bytes or size > self._settings.max_aggregate_bytes:
+            raise self._limit_error()
         name = f"{stem}-{uuid4().hex}.bin"
-        artifact = self._artifacts.put_bytes("grist", name, data)
+        artifact = self._artifacts.put_bytes("grist", name, bytes(data))
         return self._artifact_data(artifact.name, artifact.size_bytes)
+
+    @staticmethod
+    def _limit_error() -> McpGrysterError:
+        return McpGrysterError("LIMIT_EXCEEDED", "Artifact size limit exceeded")
 
     @staticmethod
     def _artifact_data(name: str, size_bytes: int) -> dict[str, Any]:

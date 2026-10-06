@@ -29,8 +29,10 @@ class FakeApi:
     created = 0
     configs: ClassVar[list[dict[str, str]]] = []
     getattr_names: ClassVar[list[str]] = []
+    constructor_delay = 0.0
 
     def __init__(self, config: dict[str, str]) -> None:
+        time.sleep(type(self).constructor_delay)
         type(self).created += 1
         type(self).configs.append(config)
 
@@ -72,6 +74,7 @@ def reset_fake() -> None:
     FakeApi.created = 0
     FakeApi.configs = []
     FakeApi.getattr_names = []
+    FakeApi.constructor_delay = 0.0
 
 
 def spec(
@@ -99,12 +102,16 @@ def adapter(
     access: DomainAccess = DomainAccess.READ,
     max_pages: int = 10,
     max_items: int = 100,
+    max_file_bytes: int = 5 * 1024 * 1024,
+    max_aggregate_bytes: int = 25 * 1024 * 1024,
 ) -> tuple[GristAdapter, RecordingAudit]:
     registry = MethodRegistry.model_construct(pygrister_version="0.10.0", methods=(method,))
     settings = Settings(
         workspace_root=tmp_path / "workspace",
         policy=DomainPolicy(records=access),
         grist_config={"GRIST_API_KEY": "secret", "UNSAFE_EXTRA": "no"},
+        max_file_bytes=max_file_bytes,
+        max_aggregate_bytes=max_aggregate_bytes,
     )
     settings.workspace_root.mkdir(exist_ok=True)
     audit = RecordingAudit()
@@ -218,6 +225,24 @@ async def test_blocking_call_runs_in_thread(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_client_construction_runs_in_thread(tmp_path: Path) -> None:
+    checked, _ = adapter(tmp_path, spec("fail_status"))
+    FakeApi.constructor_delay = 0.05
+    marker = False
+
+    async def mark() -> None:
+        nonlocal marker
+        await asyncio.sleep(0.01)
+        marker = True
+
+    call_task = asyncio.create_task(checked.call("fail_status", {}))
+    await mark()
+    assert marker and not call_task.done()
+    with pytest.raises(McpGrysterError):
+        await call_task
+
+
+@pytest.mark.asyncio
 async def test_failures_are_masked_and_audited(tmp_path: Path) -> None:
     for name in ("fail_status", "explode"):
         checked, audit = adapter(tmp_path, spec(name))
@@ -251,6 +276,61 @@ async def test_output_file_is_workspace_relative_and_persisted(tmp_path: Path) -
     }
     assert (tmp_path / "artifacts" / "grist" / "result.bin").read_bytes() == b"download"
     assert not (tmp_path / "workspace" / "exports" / "result.bin").exists()
+
+
+@pytest.mark.asyncio
+async def test_output_file_never_clobbers_caller_workspace_path(tmp_path: Path) -> None:
+    destination = tmp_path / "workspace" / "exports" / "result.bin"
+    destination.parent.mkdir()
+    destination.write_bytes(b"keep")
+    checked, _ = adapter(
+        tmp_path,
+        spec(
+            "write_file",
+            parameters={"filename": ParameterSpec(required=True)},
+            result_kind="file",
+        ),
+    )
+
+    result = await checked.call("write_file", {"filename": "exports/result.bin"})
+
+    assert destination.read_bytes() == b"keep"
+    assert result.data["artifact"]["name"] == "result.bin"
+    assert (tmp_path / "artifacts" / "grist" / "result.bin").read_bytes() == b"download"
+
+
+@pytest.mark.asyncio
+async def test_oversize_file_is_rejected_without_artifact(tmp_path: Path) -> None:
+    checked, _ = adapter(
+        tmp_path,
+        spec(
+            "write_file",
+            parameters={"filename": ParameterSpec(required=True)},
+            result_kind="file",
+        ),
+        max_file_bytes=4,
+    )
+
+    with pytest.raises(McpGrysterError) as caught:
+        await checked.call("write_file", {"filename": "result.bin"})
+
+    assert caught.value.code == "LIMIT_EXCEEDED"
+    assert not (tmp_path / "artifacts" / "grist").exists()
+
+
+@pytest.mark.asyncio
+async def test_oversize_binary_is_rejected_without_artifact(tmp_path: Path) -> None:
+    checked, _ = adapter(
+        tmp_path,
+        spec("bytes_result", result_kind="binary"),
+        max_aggregate_bytes=5,
+    )
+
+    with pytest.raises(McpGrysterError) as caught:
+        await checked.call("bytes_result", {})
+
+    assert caught.value.code == "LIMIT_EXCEEDED"
+    assert not (tmp_path / "artifacts" / "grist").exists()
 
 
 @pytest.mark.asyncio

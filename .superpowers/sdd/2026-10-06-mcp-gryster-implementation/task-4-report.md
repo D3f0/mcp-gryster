@@ -50,6 +50,8 @@ Controller follow-up: the pristine focused suite passed 9/9. Ruff then reported 
 
 Controller follow-up: Mypy reported the untyped third-party Pygrister import and branch-inferred paginator data type. The import now has a narrow `import-untyped` suppression, and the normalization variable is explicitly `Any`. Per controller instruction, no checks were rerun after these typing-only fixes.
 
+Review fix round 1 added focused regressions and corrected three important boundaries: caller file names now select only the artifact name while Pygrister writes to an adapter-owned unique path; client construction, lookup, and execution all occur in the worker thread; and file/binary outputs enforce both configured size ceilings before any artifact commit. File outputs use a bounded read after a pre-read stat and are cleaned up on all failures. Per controller instruction, no checks were run after these changes.
+
 ## Concerns
 
 - Pagination limits are adapter constructor controls (`max_pages=100`, `max_items=10000`) because the existing immutable `Settings` interface does not define dedicated Grist pagination fields. Callers may set stricter configured values when constructing the adapter.
