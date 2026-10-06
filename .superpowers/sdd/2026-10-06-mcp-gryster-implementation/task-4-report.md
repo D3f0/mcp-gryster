@@ -52,6 +52,8 @@ Controller follow-up: Mypy reported the untyped third-party Pygrister import and
 
 Review fix round 1 added focused regressions and corrected three important boundaries: caller file names now select only the artifact name while Pygrister writes to an adapter-owned unique path; client construction, lookup, and execution all occur in the worker thread; and file/binary outputs enforce both configured size ceilings before any artifact commit. File outputs use a bounded read after a pre-read stat and are cleaned up on all failures. Per controller instruction, no checks were run after these changes.
 
+Controller follow-up: the new existing-destination regression initially failed in fixture setup because its nested parent was not created recursively. The test now uses `mkdir(parents=True)`. Per controller instruction, no checks were rerun after this test-only correction.
+
 ## Concerns
 
 - Pagination limits are adapter constructor controls (`max_pages=100`, `max_items=10000`) because the existing immutable `Settings` interface does not define dedicated Grist pagination fields. Callers may set stricter configured values when constructing the adapter.

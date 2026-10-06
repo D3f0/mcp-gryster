@@ -281,7 +281,7 @@ async def test_output_file_is_workspace_relative_and_persisted(tmp_path: Path) -
 @pytest.mark.asyncio
 async def test_output_file_never_clobbers_caller_workspace_path(tmp_path: Path) -> None:
     destination = tmp_path / "workspace" / "exports" / "result.bin"
-    destination.parent.mkdir()
+    destination.parent.mkdir(parents=True)
     destination.write_bytes(b"keep")
     checked, _ = adapter(
         tmp_path,
