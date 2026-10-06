@@ -103,6 +103,7 @@ class _Runtime:
     evidence: PreviewEvidenceStore
     successful: bool = False
     failed: bool = False
+    bridge_available: bool = True
 
 
 class PreviewManager:
@@ -310,6 +311,9 @@ class PreviewManager:
                 if route == "harness" and request.method == "GET":
                     return _harness_response(runtime)
                 if route == "grist-bridge.js" and request.method == "GET":
+                    if not runtime.bridge_available:
+                        return Response(status_code=410, headers=_security_headers())
+                    runtime.bridge_available = False
                     return _bridge_response(runtime)
                 if route == "fixture" and request.method == "GET":
                     if not _origin_allowed(request, runtime):

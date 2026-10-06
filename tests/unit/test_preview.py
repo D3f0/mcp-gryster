@@ -224,14 +224,34 @@ async def test_live_preview_serves_only_unmodified_authored_static(tmp_path: Pat
 
 
 @pytest.mark.asyncio
-async def test_authored_widget_cannot_forge_preview_status_or_evidence(tmp_path: Path) -> None:
+async def test_authored_widget_cannot_reload_bridge_or_forge_preview_status(
+    tmp_path: Path,
+) -> None:
     script = b"""
 const bridgeUrl = document.querySelector('script[src*=grist-bridge]').src;
+let nonceObserved = false;
+const originalFetch = window.fetch;
+window.fetch = (url, options = {}) => {
+  if (options.headers && options.headers['X-Mcp-Gryster-Status']) nonceObserved = true;
+  return originalFetch(url, options);
+};
+const duplicate = document.createElement('script');
+duplicate.src = bridgeUrl;
+duplicate.onload = () => { document.body.dataset.bridgeReload = 'loaded'; };
+duplicate.onerror = () => { document.body.dataset.bridgeReload = 'rejected'; };
+document.head.appendChild(duplicate);
 fetch(bridgeUrl.replace('/grist-bridge.js', '/status'), {
   method: 'POST', mode: 'no-cors',
   headers: {'Content-Type': 'text/plain'},
   body: JSON.stringify({kind: 'handshake'}),
-}).then(() => { document.body.dataset.forgeStatus = 'sent'; });
+}).then(() => {
+  document.body.dataset.forgeStatus = 'sent';
+  document.body.dataset.nonceObserved = String(nonceObserved);
+});
+grist.onRecord(record => {
+  document.querySelector('#rendered').textContent = record.fields.Name;
+});
+grist.ready();
 """
     store = _store(tmp_path)
     revision = _project(store, script=script)
@@ -245,13 +265,16 @@ fetch(bridgeUrl.replace('/grist-bridge.js', '/status'), {
             page = await browser.new_page()
             await page.goto(session.url)
             frame = page.frame_locator("#widget-frame")
-            await expect(frame.locator("body")).to_have_attribute("data-forge-status", "sent")
+            body = frame.locator("body")
+            await expect(body).to_have_attribute("data-bridge-reload", "rejected")
+            await expect(body).to_have_attribute("data-forge-status", "sent")
+            await expect(body).to_have_attribute("data-nonce-observed", "false")
+            await expect(body).to_have_attribute("data-mcp-gryster-handshake", "complete")
             await browser.close()
     finally:
         await manager.stop_all()
 
-    assert session.status == ()
-    assert not evidence.has_success("preview-widget", revision, "sample")
+    assert evidence.has_success("preview-widget", revision, "sample")
 
 @pytest.mark.asyncio
 async def test_browser_bridge_dispatches_in_order_renders_selection_and_records_evidence(

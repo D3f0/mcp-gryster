@@ -68,3 +68,10 @@ Per assignment, the controller owns these commands and browser installation; the
 - Normalized arbitrary browser `Error.name` values to a fixed allowlist before reporting.
 - CSP remains strict without `unsafe-eval`; cross-origin bridge, connect, and frame permissions are session-origin-specific.
 - Per controller instruction, no checks were executed in this review fix round.
+
+## Review Fix Round 2
+
+- Made the credential-bearing bridge bootstrap one-shot per preview session; the first parser-blocking request atomically consumes the grant and all later bridge requests return HTTP 410 with no script.
+- Added a browser regression that replaces `fetch`, appends the same bridge URL, verifies the duplicate is rejected and the nonce is never observed, then proves forged status does not prevent the genuine bridge handshake.
+- Reloading a fixture preview requires starting a new preview session so it receives a fresh one-shot bootstrap grant.
+- Per controller instruction, no checks were executed in this review fix round.
