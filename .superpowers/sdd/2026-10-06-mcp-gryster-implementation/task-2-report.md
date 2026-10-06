@@ -63,3 +63,10 @@ uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/
 - Combined the nested external-HTTP/authentication guard to satisfy Ruff `SIM102` without changing behavior.
 - Declared `ErrorCode` with Python 3.12 type-alias syntax to satisfy Ruff `UP040`.
 - No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands are listed above.
+
+## Controller strict-typing fix
+
+- Declared the composed `_data` slot as `_ErrorData`, making the internal delegation target visible to strict mypy.
+- Added explicit typed casts at the Pydantic delegation boundary because the installed Pydantic typing exposes these generated attributes and serializer returns as `Any` under strict checking.
+- Public property, serialization, and throwable exception behavior is unchanged.
+- No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands remain listed above.

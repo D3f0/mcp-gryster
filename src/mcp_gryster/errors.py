@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,6 +49,7 @@ class McpGrysterError(Exception):
     """Safe, throwable error with Pydantic-validated structured fields."""
 
     __slots__ = ("_data",)
+    _data: _ErrorData
 
     def __init__(
         self,
@@ -69,19 +70,19 @@ class McpGrysterError(Exception):
 
     @property
     def code(self) -> ErrorCode:
-        return self._data.code
+        return cast(ErrorCode, self._data.code)
 
     @property
     def message(self) -> str:
-        return self._data.message
+        return cast(str, self._data.message)
 
     @property
     def details(self) -> dict[str, Any] | None:
-        return self._data.details
+        return cast(dict[str, Any] | None, self._data.details)
 
     @property
     def correlation_id(self) -> str | None:
-        return self._data.correlation_id
+        return cast(str | None, self._data.correlation_id)
 
     def __setattr__(self, name: str, value: object) -> None:
         if name in {"code", "message", "details", "correlation_id"}:
@@ -91,11 +92,11 @@ class McpGrysterError(Exception):
 
     def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         """Return the structured public payload."""
-        return self._data.model_dump(**kwargs)
+        return cast(dict[str, Any], self._data.model_dump(**kwargs))
 
     def model_dump_json(self, **kwargs: Any) -> str:
         """Serialize the structured public payload as JSON."""
-        return self._data.model_dump_json(**kwargs)
+        return cast(str, self._data.model_dump_json(**kwargs))
 
     def __str__(self) -> str:
         return self.message
