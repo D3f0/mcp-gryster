@@ -36,6 +36,8 @@ class ArtifactStore:
         """Atomically and durably write bytes under ``root/kind/name``."""
         relative = _validated_relative_path(kind, name)
         target = self._root.joinpath(relative)
+        if not _supports_dir_fd():
+            return self._put_bytes_portable(kind, name, relative, data)
         parent_fd: int | None = None
         temporary_name = f".{relative.name}.{secrets.token_hex(8)}.tmp"
         try:
@@ -86,6 +88,58 @@ class ArtifactStore:
 
         return Artifact(kind=kind, name=name, path=target, size_bytes=len(data))
 
+    def _put_bytes_portable(
+        self, kind: str, name: str, relative: Path, data: bytes
+    ) -> Artifact:
+        target = self._root.joinpath(relative)
+        parent = target.parent
+        _create_safe_directories(self._root, parent)
+        _ensure_contained(self._root, parent)
+        _ensure_no_symlink_components(self._root, parent)
+        if target.is_symlink():
+            raise _path_error()
+
+        temporary = parent / f".{target.name}.{secrets.token_hex(8)}.tmp"
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor: int | None = None
+        try:
+            descriptor = os.open(temporary, flags, 0o600)
+            with os.fdopen(descriptor, "wb", closefd=True) as stream:
+                descriptor = None
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+            _ensure_contained(self._root, parent)
+            _ensure_no_symlink_components(self._root, parent)
+            if target.is_symlink():
+                raise _path_error()
+            os.replace(temporary, target)
+            _fsync_directory(parent)
+        except McpGrysterError:
+            raise
+        except OSError as exc:
+            raise McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed") from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return Artifact(kind=kind, name=name, path=target, size_bytes=len(data))
+
+
+def _supports_dir_fd() -> bool:
+    return (
+        os.open in os.supports_dir_fd
+        and os.mkdir in os.supports_dir_fd
+        and os.rename in os.supports_dir_fd
+        and os.stat in os.supports_dir_fd
+        and os.unlink in os.supports_dir_fd
+    )
+
 
 def _validated_relative_path(kind: str, name: str) -> Path:
     for value in (kind, name):
@@ -98,6 +152,56 @@ def _validated_relative_path(kind: str, name: str) -> Path:
         ):
             raise _path_error()
     return Path(kind) / Path(name)
+
+
+def _create_safe_directories(root: Path, parent: Path) -> None:
+    current = root
+    for part in parent.relative_to(root).parts:
+        current /= part
+        try:
+            current.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        try:
+            mode = current.lstat().st_mode
+        except OSError as exc:
+            raise _path_error() from exc
+        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
+            raise _path_error()
+
+
+def _ensure_contained(root: Path, path: Path) -> None:
+    try:
+        path.resolve(strict=True).relative_to(root)
+    except (OSError, ValueError) as exc:
+        raise _path_error() from exc
+
+
+def _ensure_no_symlink_components(root: Path, parent: Path) -> None:
+    current = root
+    for part in parent.relative_to(root).parts:
+        current /= part
+        try:
+            if stat.S_ISLNK(current.lstat().st_mode):
+                raise _path_error()
+        except OSError as exc:
+            raise _path_error() from exc
+
+
+def _fsync_directory(path: Path) -> None:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError:
+        pass
+    finally:
+        os.close(descriptor)
 
 
 def _open_parent(root: Path, parts: tuple[str, ...]) -> int:

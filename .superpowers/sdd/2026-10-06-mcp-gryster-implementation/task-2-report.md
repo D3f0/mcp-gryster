@@ -89,3 +89,10 @@ uv run pytest tests/unit/test_config.py tests/unit/test_errors_audit.py -v
 uv run ruff check src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
 uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
 ```
+
+## Portable artifact fallback fix
+
+- `test_artifact_store_fallback_writes_contained_artifact` forces the no-`dir_fd` branch and covers a successful contained durable write.
+- `test_artifact_store_fallback_rejects_unsafe_paths` forces that branch and covers traversal, absolute path, and symlink-parent rejection.
+- Artifact storage now detects the complete directory-descriptor capability set before using descriptor-relative operations. Unsupported platforms use canonical containment plus repeated symlink checks, exclusive temporary creation, file `fsync`, atomic `os.replace`, and best-effort directory `fsync` where the platform allows opening directories.
+- No checks were executed per controller instruction. Expected verification remains the pytest, Ruff, and mypy commands listed above.

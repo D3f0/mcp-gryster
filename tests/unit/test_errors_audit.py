@@ -204,3 +204,37 @@ def test_artifact_store_anchors_replace_when_parent_is_substituted(
     assert caught.value.code == "PATH_NOT_ALLOWED"
     assert not (outside / "index.html").exists()
     assert (root / "displaced" / "index.html").read_bytes() == b"safe"
+
+
+def test_artifact_store_fallback_writes_contained_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import mcp_gryster.artifacts as artifacts
+
+    monkeypatch.setattr(artifacts, "_supports_dir_fd", lambda: False)
+    store = ArtifactStore(tmp_path)
+
+    artifact = store.put_bytes("preview", "index.html", b"portable")
+
+    assert artifact.path.read_bytes() == b"portable"
+
+
+def test_artifact_store_fallback_rejects_unsafe_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import mcp_gryster.artifacts as artifacts
+
+    monkeypatch.setattr(artifacts, "_supports_dir_fd", lambda: False)
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (root / "linked").symlink_to(outside, target_is_directory=True)
+    store = ArtifactStore(root)
+
+    for kind, name in (("preview", "../x"), ("preview", "/tmp/x"), ("linked", "x")):
+        with pytest.raises(McpGrysterError) as caught:
+            store.put_bytes(kind, name, b"unsafe")
+        assert caught.value.code == "PATH_NOT_ALLOWED"
+
+    assert not (outside / "x").exists()
