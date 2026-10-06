@@ -195,11 +195,7 @@ class PreviewManager:
                 self._sessions[session_id] = runtime
             return session
         except BaseException:
-            server.should_exit = True
-            try:
-                await asyncio.shield(task)
-            except asyncio.CancelledError:
-                await task
+            await self._shutdown(server, task)
             raise
 
     async def stop(self, session_id: str) -> StopPreviewResult:
@@ -208,8 +204,7 @@ class PreviewManager:
             runtime = self._sessions.pop(session_id, None)
         if runtime is None:
             return StopPreviewResult(session_id=session_id, stopped=False)
-        runtime.server.should_exit = True
-        await runtime.task
+        await self._shutdown(runtime.server, runtime.task)
         return StopPreviewResult(session_id=session_id, stopped=True)
 
     async def stop_all(self) -> None:
@@ -217,10 +212,23 @@ class PreviewManager:
         async with self._lock:
             runtimes = tuple(self._sessions.values())
             self._sessions.clear()
-        for runtime in runtimes:
-            runtime.server.should_exit = True
         if runtimes:
-            await asyncio.gather(*(runtime.task for runtime in runtimes))
+            await asyncio.gather(
+                *(self._shutdown(runtime.server, runtime.task) for runtime in runtimes)
+            )
+
+    @staticmethod
+    async def _shutdown(server: uvicorn.Server, task: asyncio.Task[None]) -> None:
+        server.should_exit = True
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=5)
+        except TimeoutError:
+            server.force_exit = True
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=1)
+            except TimeoutError:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     @staticmethod
     async def _wait_started(server: uvicorn.Server, task: asyncio.Task[None]) -> None:

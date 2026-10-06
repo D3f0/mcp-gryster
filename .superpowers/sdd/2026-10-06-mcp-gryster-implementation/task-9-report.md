@@ -44,3 +44,11 @@ Per assignment, the controller owns these commands and browser installation; the
 
 - Chromium browser behavior remains unexecuted until the controller installs/runs Playwright. The tests deliberately accept the browser-reported runtime column while requiring the sanitized location to identify `app.js` line 1.
 - Preview status and evidence are process-local by design, matching the Task 8 injected evidence store.
+
+## Controller Fix Round
+
+- Normalized urllib response header names in the test helper while retaining explicit `nosniff`, frame policy, and MIME assertions.
+- Replaced CSP-blocked Playwright string evaluation with frame locator assertions; the CSP remains strict and does not permit `unsafe-eval`.
+- Browser tests now stop preview servers in `finally` blocks.
+- Preview shutdown now requests graceful Uvicorn exit, awaits it with a bounded timeout, escalates to `force_exit`, and cancels only as a final fallback.
+- Per controller instruction, no checks were executed in this fix round.

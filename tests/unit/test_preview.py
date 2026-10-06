@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 import pytest
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 
 from mcp_gryster.widget.models import FileUpdate, WidgetMetadata
 from mcp_gryster.widget.preview import PreviewManager
@@ -26,9 +26,11 @@ def _request(
     request = urllib.request.Request(url, method=method, data=body, headers=headers or {})
     try:
         with urllib.request.urlopen(request, timeout=2) as response:
-            return response.status, response.read(), dict(response.headers.items())
+            normalized = {key.lower(): value for key, value in response.headers.items()}
+            return response.status, response.read(), normalized
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read(), dict(exc.headers.items())
+        normalized = {key.lower(): value for key, value in exc.headers.items()}
+        return exc.code, exc.read(), normalized
 
 
 def _store(tmp_path: Path) -> ProjectStore:
@@ -125,9 +127,9 @@ async def test_fixture_preview_is_capability_scoped_and_stops_cleanly(tmp_path: 
     assert status == 200
     assert b"<iframe" in harness
     assert b"Preview Widget" not in harness
-    assert headers["X-Content-Type-Options"] == "nosniff"
-    assert headers["X-Frame-Options"] == "SAMEORIGIN"
-    assert headers["Content-Type"].startswith("text/html")
+    assert headers["x-content-type-options"] == "nosniff"
+    assert headers["x-frame-options"] == "SAMEORIGIN"
+    assert headers["content-type"].startswith("text/html")
 
     widget_url = f"{origin}/t/{token}/widget/index.html"
     status, widget, _ = await asyncio.to_thread(_request, widget_url)
@@ -139,7 +141,7 @@ async def test_fixture_preview_is_capability_scoped_and_stops_cleanly(tmp_path: 
         _request, f"{origin}/t/{token}/widget/style.css"
     )
     assert status == 200
-    assert headers["Content-Type"].startswith("text/css")
+    assert headers["content-type"].startswith("text/css")
 
     denied_urls = (
         f"{origin}/",
@@ -238,22 +240,21 @@ grist.ready();
     manager = PreviewManager(store, evidence)
     session = await manager.start("preview-widget", "fixture", "sample")
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
-        page = await browser.new_page()
-        await page.goto(session.url)
-        frame = page.frame_locator("#widget-frame")
-        await frame.locator("#rendered").wait_for()
-        await frame.locator("#rendered").wait_for(state="visible")
-        await page.wait_for_function(
-            "document.querySelector('#widget-frame').contentDocument"
-            ".querySelector('#rendered').textContent === 'Selected fixture value'"
-        )
-        await page.wait_for_function(
-            "document.querySelector('#widget-frame').contentDocument.body.dataset"
-            ".mcpGrysterHandshake === 'complete'"
-        )
-        await browser.close()
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(session.url)
+            frame = page.frame_locator("#widget-frame")
+            rendered = frame.locator("#rendered")
+            await rendered.wait_for(state="visible")
+            await expect(rendered).to_have_text("Selected fixture value")
+            await expect(frame.locator("body")).to_have_attribute(
+                "data-mcp-gryster-handshake", "complete"
+            )
+            await browser.close()
+    finally:
+        await manager.stop_all()
 
     assert [status.kind for status in session.status] == [
         "callback",
@@ -276,7 +277,6 @@ grist.ready();
         None,
     ]
     assert evidence.has_success("preview-widget", revision, "sample")
-    await manager.stop_all()
 
 
 @pytest.mark.asyncio
@@ -300,26 +300,25 @@ grist.ready();
     manager = PreviewManager(store, evidence)
     session = await manager.start("preview-widget", "fixture", "sample")
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
-        page = await browser.new_page()
-        await page.goto(session.url)
-        await page.wait_for_function(
-            "document.querySelector('#widget-frame').contentDocument"
-            ".querySelector('#rendered').textContent === '2:changed in memory'"
-        )
-        await page.wait_for_function(
-            "document.querySelector('#widget-frame').contentDocument.body.dataset"
-            ".mcpGrysterUnsupported === 'notARealMember'"
-        )
-        await browser.close()
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(session.url)
+            frame = page.frame_locator("#widget-frame")
+            await expect(frame.locator("#rendered")).to_have_text("2:changed in memory")
+            await expect(frame.locator("body")).to_have_attribute(
+                "data-mcp-gryster-unsupported", "notARealMember"
+            )
+            await browser.close()
+    finally:
+        await manager.stop_all()
 
     unsupported = [status for status in session.status if status.kind == "unsupported"]
     assert [(status.method, status.error_class) for status in unsupported] == [
         ("notARealMember", "GristPreviewUnsupportedError")
     ]
     assert not evidence.has_success("preview-widget", revision, "sample")
-    await manager.stop_all()
 
 
 @pytest.mark.asyncio
@@ -333,15 +332,18 @@ async def test_runtime_failure_status_omits_authored_message_and_never_records_s
     manager = PreviewManager(store, evidence)
     session = await manager.start("preview-widget", "fixture", "sample")
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
-        page = await browser.new_page()
-        await page.goto(session.url)
-        await page.wait_for_function(
-            "document.querySelector('#widget-frame').contentDocument.body.dataset"
-            ".mcpGrysterError === 'runtime'"
-        )
-        await browser.close()
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(session.url)
+            frame = page.frame_locator("#widget-frame")
+            await expect(frame.locator("body")).to_have_attribute(
+                "data-mcp-gryster-error", "runtime"
+            )
+            await browser.close()
+    finally:
+        await manager.stop_all()
 
     runtime = next(status for status in session.status if status.kind == "uncaught")
     assert runtime.error_class == "TypeError"
@@ -352,5 +354,4 @@ async def test_runtime_failure_status_omits_authored_message_and_never_records_s
     assert "fixture" not in repr(runtime).lower()
     assert not evidence.has_success("preview-widget", revision, "sample")
 
-    await manager.stop(session.session_id)
     assert not evidence.has_success("preview-widget", revision, "sample")
