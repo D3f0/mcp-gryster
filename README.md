@@ -31,7 +31,7 @@ Run `uvx mcp-gryster --help` to see transport and workspace options.
 
 ## Security defaults
 
-Grist operations are checked against explicit per-domain `none`, `read`, or `write` permissions. Sensitive identity, service-account, and administration domains are disabled by default. File access is confined to the configured workspace, and Streamable HTTP rejects unsafe network exposure unless authentication is configured.
+Grist operations are checked against explicit per-domain `none`, `read`, or `write` permissions. Sensitive identity, service-account, and administration domains are disabled by default. File access is confined to the configured workspace. Streamable HTTP currently binds only to loopback addresses; configured bearer tokens do not permit non-loopback exposure until FastMCP authentication is enforced end to end.
 
 ## Extra: custom-widget authoring
 
