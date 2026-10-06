@@ -229,9 +229,10 @@ class FixtureManager:
 
     def _sanitize_client_fixture(self, fixture: PreviewFixture) -> PreviewFixture:
         columns = {column.id: column for column in fixture.columns}
+        include_attachment_metadata = fixture.options.get("includeAttachmentMetadata") is True
         if any(
             column.type in _ATTACHMENT_TYPES for column in fixture.columns
-        ) and not fixture.include_attachment_metadata:
+        ) and not include_attachment_metadata:
             raise McpGrysterError(
                 "INVALID_ARGUMENT", "Attachment fixture columns require explicit metadata opt-in"
             )

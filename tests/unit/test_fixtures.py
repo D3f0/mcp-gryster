@@ -418,7 +418,7 @@ def test_client_fixture_redacts_records_and_restricts_attachment_metadata(tmp_pa
     assert caught.value.code == "INVALID_ARGUMENT"
     assert store.read("safe-widget").revision == revision
 
-    fixture["includeAttachmentMetadata"] = True
+    fixture["options"] = {"includeAttachmentMetadata": True}
     summary = manager.create("safe-widget", fixture)
     payload = json.loads(_fixture_bytes(store, summary.revision))
     assert payload["records"] == [
