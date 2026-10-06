@@ -51,3 +51,8 @@ Executed successfully:
 - Corrected attachment-only test setup to use an empty mapping while preserving strict mapping enforcement.
 - Added focused regression coverage before implementation.
 - Per controller instruction, no checks were executed in this fix round.
+
+## Controller Ruff Fix
+
+- Sorted `widget.__all__` exports lexicographically to satisfy RUF022.
+- Per controller instruction, no checks were executed for this mechanical fix.

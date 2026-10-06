@@ -42,10 +42,10 @@ __all__ = [
     "ProjectSnapshot",
     "ProjectStore",
     "StoredPreviewFixture",
+    "ValidationIssue",
+    "ValidationReport",
     "WidgetAuthor",
     "WidgetColumn",
     "WidgetMetadata",
-    "ValidationIssue",
-    "ValidationReport",
     "WidgetValidator",
 ]
