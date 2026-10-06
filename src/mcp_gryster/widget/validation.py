@@ -275,14 +275,24 @@ def _javascript_issues(
         if config is None:
             issues.append(_issue("DYNAMIC_PLUGIN_CONFIG", "error", "Grist config is not statically verifiable", "javascript"))
         else:
-            access, columns = config
+            access, columns, invalid_indexes = config
             if access != metadata.access_level:
                 issues.append(_issue("READY_ACCESS_MISMATCH", "error", "Grist access differs from metadata", "access"))
+            issues.extend(
+                _issue(
+                    "READY_COLUMN_INVALID",
+                    "error",
+                    "Grist initialization column is invalid",
+                    "column",
+                    str(index),
+                )
+                for index in invalid_indexes
+            )
             ready_by_name = {column.name: column for column in columns}
             missing = any(column.name not in ready_by_name for column in metadata.columns)
             if missing:
                 issues.append(_issue("DECLARED_COLUMN_MISSING", "error", "Metadata column is absent from initialization", "column"))
-            if not missing and (
+            if not missing and not invalid_indexes and (
                 set(ready_by_name) != {column.name for column in metadata.columns}
                 or any(
                     not _column_contract_matches(column, ready_by_name[column.name])
@@ -409,9 +419,9 @@ def _node_text(source: bytes, node: Node) -> str:
 
 def _literal_ready_config(
     has_argument: bool, config: Node | None, source: bytes
-) -> tuple[str, tuple[WidgetColumn, ...]] | None:
+) -> tuple[str, tuple[WidgetColumn, ...], tuple[int, ...]] | None:
     if not has_argument:
-        return "none", ()
+        return "none", (), ()
     if config is None or config.type != "object":
         return None
     values = _object_values(config, source)
@@ -424,11 +434,12 @@ def _literal_ready_config(
             return None
         access = parsed_access
     columns: list[WidgetColumn] = []
+    invalid_indexes: list[int] = []
     columns_node = values.get("columns")
     if columns_node is not None:
         if columns_node.type != "array":
             return None
-        for item in columns_node.named_children:
+        for index, item in enumerate(columns_node.named_children):
             item_values = _object_values(item, source)
             if item_values is None or "name" not in item_values or "type" not in item_values:
                 return None
@@ -440,12 +451,15 @@ def _literal_ready_config(
             allow_multiple = _literal_bool(item_values.get("allowMultiple"), source, default=False)
             if optional is None or allow_multiple is None:
                 return None
-            columns.append(
-                WidgetColumn(
+            try:
+                column = WidgetColumn(
                     name=name, type=column_type, optional=optional, allowMultiple=allow_multiple
                 )
-            )
-    return access, tuple(columns)
+            except ValidationError:
+                invalid_indexes.append(index)
+            else:
+                columns.append(column)
+    return access, tuple(columns), tuple(invalid_indexes)
 
 
 def _object_values(node: Node, source: bytes) -> dict[str, Node] | None:

@@ -61,3 +61,10 @@ Executed successfully:
 
 - Moved `PreviewFixture` after `PreviewEvidenceStore` in `widget.__all__` to satisfy export ordering.
 - Per controller instruction, no checks were executed for this mechanical fix.
+
+## Review Round 2
+
+- Invalid literal ready columns now emit value-free `READY_COLUMN_INVALID` findings with only the column index as evidence.
+- Remaining valid ready columns continue to be parsed and compared safely.
+- Added focused crash regression coverage before implementation.
+- Per controller instruction, no checks were executed in this review round.
