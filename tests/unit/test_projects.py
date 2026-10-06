@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -58,6 +59,19 @@ def test_create_read_and_list_have_deterministic_revision(
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
     assert created.revision == digest.hexdigest()
+
+
+def test_create_uses_configured_nested_entrypoint(store: ProjectStore) -> None:
+    metadata = WidgetMetadata(
+        project_id="nested-widget",
+        widget_id="com.example.nested",
+        name="Nested Widget",
+        entrypoint="pages/main.html",
+    )
+
+    created = store.create(metadata)
+
+    assert created.files == ("src/pages/main.html", "widget.json")
 
 
 def test_store_accepts_settings_limits(tmp_path: Path) -> None:
@@ -149,6 +163,55 @@ def test_stale_and_overlapping_updates_do_not_mutate(
         )
     assert overlap.value.code == "INVALID_ARGUMENT"
     assert store.read(metadata.project_id) == current
+
+
+def test_concurrent_store_instances_accept_expected_revision_once(
+    tmp_path: Path, metadata: WidgetMetadata
+) -> None:
+    workspace = tmp_path / "workspace"
+    first = ProjectStore(workspace)
+    second = ProjectStore(workspace)
+    initial = first.create(metadata)
+
+    def update(store: ProjectStore, content: bytes) -> str:
+        try:
+            return store.apply_files(
+                metadata.project_id,
+                initial.revision,
+                [FileUpdate(path="src/index.html", content=content)],
+                [],
+            ).revision
+        except McpGrysterError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = tuple(
+            pool.map(
+                lambda args: update(*args),
+                ((first, b"first\n"), (second, b"second\n")),
+            )
+        )
+
+    assert results.count("REVISION_CONFLICT") == 1
+    assert first.read(metadata.project_id).revision in results
+
+
+def test_stale_dead_owner_lock_is_recovered(
+    store: ProjectStore, metadata: WidgetMetadata
+) -> None:
+    initial = store.create(metadata)
+    lock = store.project_path(metadata.project_id) / ".write.lock"
+    lock.write_text(json.dumps({"pid": -1, "timestamp": 0}), encoding="utf-8")
+
+    updated = store.apply_files(
+        metadata.project_id,
+        initial.revision,
+        [FileUpdate(path="src/index.html", content=b"recovered\n")],
+        [],
+    )
+
+    assert updated.revision != initial.revision
+    assert not lock.exists()
 
 
 def test_limits_are_checked_before_any_revision_write(
@@ -302,6 +365,23 @@ def test_materialize_requires_trusted_workspace_destination(
     with pytest.raises(McpGrysterError) as caught:
         store.materialize(metadata.project_id, current.revision, tmp_path / "outside")
     assert caught.value.code == "PATH_NOT_ALLOWED"
+
+
+def test_materialize_rejects_parent_traversal_escape(
+    store: ProjectStore, metadata: WidgetMetadata, tmp_path: Path
+) -> None:
+    current = store.create(metadata)
+    escaped = tmp_path / "outside"
+
+    with pytest.raises(McpGrysterError) as caught:
+        store.materialize(
+            metadata.project_id,
+            current.revision,
+            store.workspace / ".." / "outside",
+        )
+
+    assert caught.value.code == "PATH_NOT_ALLOWED"
+    assert not escaped.exists()
 
 
 def test_invalid_pointer_content_is_rejected_before_revision_read(

@@ -1,6 +1,7 @@
 """Atomic immutable storage for authored widget project revisions."""
 
 from __future__ import annotations
+from contextlib import contextmanager
 
 import hashlib
 import json
@@ -8,7 +9,8 @@ import os
 import secrets
 import shutil
 import stat
-from collections.abc import Iterable, Mapping, Sequence
+import time
+from collections.abc import Generator, Iterable, Mapping, Sequence
 from pathlib import Path
 from threading import RLock
 from typing import Any, overload
@@ -24,6 +26,9 @@ from mcp_gryster.widget.paths import (
 
 _STARTER_INDEX = b"<!doctype html>\n<html><body></body></html>\n"
 _STATE_DIRECTORY = ".mcp-gryster"
+_LOCK_ACQUIRE_SECONDS = 5.0
+_LOCK_STALE_SECONDS = 30.0
+_LOCK_RETRY_SECONDS = 0.01
 
 
 class ProjectStore:
@@ -101,13 +106,16 @@ class ProjectStore:
         if not isinstance(metadata, WidgetMetadata):
             metadata = WidgetMetadata.model_validate(metadata)
         project_id = validate_project_id(metadata.project_id)
+        entrypoint = normalize_authored_path(f"src/{metadata.entrypoint}")
         files = {
-            "src/index.html": _STARTER_INDEX,
+            entrypoint: _STARTER_INDEX,
             "widget.json": metadata.to_widget_json(),
         }
         self._validate_file_set(files)
-        with self._lock:
-            project = self.project_path(project_id)
+        project = self.project_path(project_id)
+        _safe_mkdir_tree(self._root, project)
+        with self._lock, _project_lock(project):
+            _safe_mkdir_tree(project, project / "revisions")
             pointer = project / "current.json"
             try:
                 pointer_mode = pointer.lstat().st_mode
@@ -117,7 +125,6 @@ class ProjectStore:
                 if stat.S_ISLNK(pointer_mode) or stat.S_ISREG(pointer_mode):
                     raise McpGrysterError("INVALID_ARGUMENT", "Widget project already exists")
                 raise _path_error()
-            _safe_mkdir_tree(self._root, project / "revisions")
             revision = _revision_digest(files)
             self._commit_revision(project, revision, files, previous=None)
             self._replace_pointer(project, revision)
@@ -170,8 +177,8 @@ class ProjectStore:
         if overlap:
             raise McpGrysterError("INVALID_ARGUMENT", "Update and delete paths conflict")
 
-        with self._lock:
-            project = self.project_path(project_id)
+        project = self.project_path(project_id)
+        with self._lock, _project_lock(project):
             current_revision = self._read_pointer(project)
             if current_revision != expected_revision:
                 raise McpGrysterError(
@@ -201,7 +208,7 @@ class ProjectStore:
         """Copy a validated revision to an unused destination below the workspace."""
         project_id = validate_project_id(project_id)
         revision = validate_revision(revision)
-        destination_path = Path(destination).expanduser().absolute()
+        destination_path = _canonical_destination(Path(destination).expanduser())
         with self._lock:
             project = self.project_path(project_id)
             current_revision = self._read_pointer(project)
@@ -411,6 +418,95 @@ class ProjectStore:
             for candidate in revisions.iterdir():
                 if candidate.name.startswith(".staging-"):
                     _remove_tree_no_follow(candidate)
+
+
+@contextmanager
+def _project_lock(project: Path) -> Generator[None, None, None]:
+    lock = project / ".write.lock"
+    deadline = time.monotonic() + _LOCK_ACQUIRE_SECONDS
+    descriptor: int | None = None
+    while descriptor is None:
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            descriptor = os.open(lock, flags, 0o600)
+        except FileExistsError:
+            _remove_stale_lock(lock)
+            if time.monotonic() >= deadline:
+                raise McpGrysterError("REVISION_CONFLICT", "Project update is busy")
+            time.sleep(_LOCK_RETRY_SECONDS)
+    identity = os.fstat(descriptor)
+    try:
+        payload = json.dumps({"pid": os.getpid(), "timestamp": time.time()}).encode()
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+        _fsync_directory(project)
+        yield
+    finally:
+        os.close(descriptor)
+        try:
+            current = lock.lstat()
+            if (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino):
+                lock.unlink()
+                _fsync_directory(project)
+        except OSError:
+            pass
+
+
+def _remove_stale_lock(lock: Path) -> None:
+    try:
+        before = lock.lstat()
+        if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+            raise _path_error()
+        raw = _read_regular_file(lock)
+        if not raw:
+            if time.time() - before.st_mtime <= _LOCK_STALE_SECONDS:
+                return
+            after = lock.lstat()
+            if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
+                lock.unlink()
+            return
+        owner = json.loads(raw)
+        pid = owner.get("pid") if isinstance(owner, dict) else None
+        timestamp = owner.get("timestamp") if isinstance(owner, dict) else None
+        if not isinstance(pid, int) or not isinstance(timestamp, (int, float)):
+            raise _path_error()
+        if time.time() - timestamp <= _LOCK_STALE_SECONDS or _process_alive(pid):
+            return
+        after = lock.lstat()
+        if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
+            lock.unlink()
+    except FileNotFoundError:
+        return
+    except McpGrysterError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _path_error() from exc
+
+
+def _process_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _canonical_destination(destination: Path) -> Path:
+    if ".." in destination.parts:
+        raise _path_error()
+    absolute = destination if destination.is_absolute() else Path.cwd() / destination
+    _reject_symlink_components(absolute.parent)
+    try:
+        parent = absolute.parent.resolve(strict=False)
+    except OSError as exc:
+        raise _path_error() from exc
+    return parent / absolute.name
 
 
 def _normalize_updates(

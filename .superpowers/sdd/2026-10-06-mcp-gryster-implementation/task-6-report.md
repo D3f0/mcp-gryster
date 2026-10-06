@@ -50,3 +50,11 @@ uv run mypy src/mcp_gryster/widget
 
 - Strict mypy still retained the original constructor union after assignment through an optional settings alias. The constructor now uses direct `isinstance(Settings)` branching and assigns a separately annotated `workspace_path: str | Path`; `Path` receives only that narrowed local.
 - No checks were executed after this typing-only fix, per controller instruction.
+
+## Security review fix round 1
+
+- Added focused regressions before production changes for lexical `..` materialization escape, concurrent compare-and-swap across two `ProjectStore` instances, stale dead-owner lock recovery, and nested configured entrypoints.
+- Materialization now rejects explicit parent traversal and canonicalizes a no-symlink destination parent before containment checks or creation.
+- Project create/update publication now holds a project-scoped atomic lockfile across pointer comparison through pointer replacement. Acquisition is bounded; stale locks require both age beyond 30 seconds and a dead owner PID, while fresh empty lockfiles are treated as in-progress acquisition. Lock cleanup verifies inode identity.
+- Project creation now writes the starter document at the validated `src/<metadata.entrypoint>` path, including nested entrypoints.
+- Per controller instruction, no checks were executed. Controller should rerun the Task 6 pytest, Ruff, and strict mypy commands recorded above.
