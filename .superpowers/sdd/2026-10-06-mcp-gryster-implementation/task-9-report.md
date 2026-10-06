@@ -52,3 +52,9 @@ Per assignment, the controller owns these commands and browser installation; the
 - Browser tests now stop preview servers in `finally` blocks.
 - Preview shutdown now requests graceful Uvicorn exit, awaits it with a bounded timeout, escalates to `force_exit`, and cancels only as a final fallback.
 - Per controller instruction, no checks were executed in this fix round.
+
+## Controller Ruff Fix
+
+- Sorted `StopPreviewResult` before `StoredPreviewFixture` in `widget.__all__` to satisfy RUF022.
+- Controller reported 5/5 focused preview tests and 187/187 unit tests passing with pristine output before this exact mechanical reorder.
+- Per controller instruction, no checks were executed for this mechanical fix.
