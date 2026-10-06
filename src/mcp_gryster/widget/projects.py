@@ -27,7 +27,6 @@ from mcp_gryster.widget.paths import (
 _STARTER_INDEX = b"<!doctype html>\n<html><body></body></html>\n"
 _STATE_DIRECTORY = ".mcp-gryster"
 _LOCK_ACQUIRE_SECONDS = 5.0
-_LOCK_STALE_SECONDS = 30.0
 _LOCK_RETRY_SECONDS = 0.01
 
 
@@ -423,78 +422,64 @@ class ProjectStore:
 @contextmanager
 def _project_lock(project: Path) -> Generator[None, None, None]:
     lock = project / ".write.lock"
-    deadline = time.monotonic() + _LOCK_ACQUIRE_SECONDS
-    descriptor: int | None = None
-    while descriptor is None:
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        try:
-            descriptor = os.open(lock, flags, 0o600)
-        except FileExistsError:
-            _remove_stale_lock(lock)
+    flags = os.O_CREAT | os.O_RDWR
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(lock, flags, 0o600)
+    except OSError as exc:
+        raise _path_error() from exc
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise _path_error()
+        deadline = time.monotonic() + _LOCK_ACQUIRE_SECONDS
+        while not _try_advisory_lock(descriptor):
             if time.monotonic() >= deadline:
                 raise McpGrysterError("REVISION_CONFLICT", "Project update is busy")
             time.sleep(_LOCK_RETRY_SECONDS)
-    identity = os.fstat(descriptor)
-    try:
-        payload = json.dumps({"pid": os.getpid(), "timestamp": time.time()}).encode()
-        os.write(descriptor, payload)
-        os.fsync(descriptor)
-        _fsync_directory(project)
-        yield
+        try:
+            yield
+        finally:
+            _release_advisory_lock(descriptor)
     finally:
         os.close(descriptor)
+
+
+def _try_advisory_lock(descriptor: int) -> bool:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        if os.fstat(descriptor).st_size == 0:
+            os.write(descriptor, b"0")
+            os.fsync(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
         try:
-            current = lock.lstat()
-            if (current.st_dev, current.st_ino) == (identity.st_dev, identity.st_ino):
-                lock.unlink()
-                _fsync_directory(project)
+            msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
         except OSError:
-            pass
-
-
-def _remove_stale_lock(lock: Path) -> None:
-    try:
-        before = lock.lstat()
-        if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
-            raise _path_error()
-        raw = _read_regular_file(lock)
-        if not raw:
-            if time.time() - before.st_mtime <= _LOCK_STALE_SECONDS:
-                return
-            after = lock.lstat()
-            if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
-                lock.unlink()
-            return
-        owner = json.loads(raw)
-        pid = owner.get("pid") if isinstance(owner, dict) else None
-        timestamp = owner.get("timestamp") if isinstance(owner, dict) else None
-        if not isinstance(pid, int) or not isinstance(timestamp, (int, float)):
-            raise _path_error()
-        if time.time() - timestamp <= _LOCK_STALE_SECONDS or _process_alive(pid):
-            return
-        after = lock.lstat()
-        if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
-            lock.unlink()
-    except FileNotFoundError:
-        return
-    except McpGrysterError:
-        raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise _path_error() from exc
-
-
-def _process_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
+            return False
         return True
+
+    import fcntl
+
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
     return True
+
+
+def _release_advisory_lock(descriptor: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        return
+
+    import fcntl
+
+    fcntl.flock(descriptor, fcntl.LOCK_UN)
 
 
 def _canonical_destination(destination: Path) -> Path:

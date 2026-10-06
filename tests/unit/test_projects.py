@@ -184,23 +184,24 @@ def test_concurrent_store_instances_accept_expected_revision_once(
         except McpGrysterError as exc:
             return exc.code
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        results = tuple(
-            pool.map(
-                lambda args: update(*args),
-                ((first, b"first\n"), (second, b"second\n")),
-            )
-        )
+    stores = (first, second, ProjectStore(workspace), ProjectStore(workspace))
+    payloads = tuple(
+        (candidate, f"content-{index}\n".encode())
+        for index, candidate in enumerate(stores)
+    )
+    with ThreadPoolExecutor(max_workers=len(stores)) as pool:
+        results = tuple(pool.map(lambda args: update(*args), payloads))
 
-    assert results.count("REVISION_CONFLICT") == 1
+    assert results.count("REVISION_CONFLICT") == len(stores) - 1
     assert first.read(metadata.project_id).revision in results
 
 
-def test_stale_dead_owner_lock_is_recovered(
+def test_old_lock_metadata_is_never_deleted(
     store: ProjectStore, metadata: WidgetMetadata
 ) -> None:
     initial = store.create(metadata)
     lock = store.project_path(metadata.project_id) / ".write.lock"
+    before = lock.stat()
     lock.write_text(json.dumps({"pid": -1, "timestamp": 0}), encoding="utf-8")
 
     updated = store.apply_files(
@@ -210,8 +211,10 @@ def test_stale_dead_owner_lock_is_recovered(
         [],
     )
 
+    after = lock.stat()
     assert updated.revision != initial.revision
-    assert not lock.exists()
+    assert (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino)
+    assert lock.exists()
 
 
 def test_limits_are_checked_before_any_revision_write(

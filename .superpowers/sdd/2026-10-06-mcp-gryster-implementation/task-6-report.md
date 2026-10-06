@@ -63,3 +63,10 @@ uv run mypy src/mcp_gryster/widget
 
 - Controller verified 45/45 Task 6 tests passing before this edit.
 - Sorted the `contextlib` import after `collections.abc` to resolve Ruff I001. No checks were executed after this import-only change, per controller instruction.
+
+## Security review fix round 2
+
+- Added regression coverage with four concurrent `ProjectStore` instances proving one same-revision success and three conflicts, plus an old-metadata lockfile inode-preservation assertion.
+- Replaced stale lockfile deletion with a permanent advisory lockfile. POSIX uses non-blocking `fcntl.flock`; Windows uses one-byte non-blocking `msvcrt.locking`. Both retry only until the configured five-second deadline and hold the advisory lock through compare-and-swap publication.
+- Lock metadata is no longer interpreted and lockfiles are never unlinked, eliminating stale-recoverer pathname races and making process death release locks automatically through descriptor closure.
+- Per controller instruction, no checks were executed. Controller should rerun Task 6 pytest, Ruff, and strict mypy.
