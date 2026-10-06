@@ -76,3 +76,16 @@ uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/
 - Removed the six casts that strict mypy identified as redundant after `_data` received its explicit `_ErrorData` annotation, and removed the unused `cast` import.
 - Throwable and structured public error behavior is unchanged.
 - No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands remain listed above.
+
+## Security review fixes
+
+- `test_public_error_redacts_quoted_headers_and_response_repr` covers quoted `Authorization` dictionary reprs and structured `response` bodies; sanitization now removes both before debug logging.
+- `test_requests_value_error_subclass_is_remote_failure` covers Requests exceptions that also inherit `ValueError`; dependency-origin classification now precedes generic local failure mapping.
+- `test_artifact_store_anchors_replace_when_parent_is_substituted` simulates replacing the validated parent path with a symlink during the write. Directory traversal, temporary creation, replacement, cleanup, and directory `fsync` now remain anchored to no-follow directory descriptors, so bytes cannot escape through pathname substitution.
+- No checks were executed per controller instruction. Expected verification:
+
+```sh
+uv run pytest tests/unit/test_config.py tests/unit/test_errors_audit.py -v
+uv run ruff check src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
+uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
+```

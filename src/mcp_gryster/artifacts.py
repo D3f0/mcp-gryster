@@ -36,41 +36,53 @@ class ArtifactStore:
         """Atomically and durably write bytes under ``root/kind/name``."""
         relative = _validated_relative_path(kind, name)
         target = self._root.joinpath(relative)
-        parent = target.parent
-        _create_safe_directories(self._root, parent)
-        _ensure_contained(self._root, parent)
-        _ensure_no_symlink_components(self._root, parent)
-        if target.is_symlink():
-            raise _path_error()
-
-        temporary = parent / f".{target.name}.{secrets.token_hex(8)}.tmp"
-        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
-        descriptor: int | None = None
+        parent_fd: int | None = None
+        temporary_name = f".{relative.name}.{secrets.token_hex(8)}.tmp"
         try:
-            descriptor = os.open(temporary, flags, 0o600)
+            parent_fd = _open_parent(self._root, relative.parts[:-1])
+            target_name = relative.name
+            try:
+                target_stat = os.stat(target_name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                if stat.S_ISLNK(target_stat.st_mode):
+                    raise _path_error()
+
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(temporary_name, flags, 0o600, dir_fd=parent_fd)
             with os.fdopen(descriptor, "wb", closefd=True) as stream:
-                descriptor = None
                 stream.write(data)
                 stream.flush()
                 os.fsync(stream.fileno())
-            _ensure_no_symlink_components(self._root, parent)
-            if target.is_symlink():
+            os.replace(
+                temporary_name,
+                target_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
+            path_stat = os.stat(target.parent, follow_symlinks=False)
+            descriptor_stat = os.fstat(parent_fd)
+            if (path_stat.st_dev, path_stat.st_ino) != (
+                descriptor_stat.st_dev,
+                descriptor_stat.st_ino,
+            ):
                 raise _path_error()
-            os.replace(temporary, target)
-            _fsync_directory(parent)
+            os.fsync(parent_fd)
         except McpGrysterError:
             raise
         except OSError as exc:
             raise McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed") from exc
         finally:
-            if descriptor is not None:
-                os.close(descriptor)
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
+            if parent_fd is not None:
+                try:
+                    os.unlink(temporary_name, dir_fd=parent_fd)
+                except OSError:
+                    pass
+                finally:
+                    os.close(parent_fd)
 
         return Artifact(kind=kind, name=name, path=target, size_bytes=len(data))
 
@@ -88,49 +100,26 @@ def _validated_relative_path(kind: str, name: str) -> Path:
     return Path(kind) / Path(name)
 
 
-def _create_safe_directories(root: Path, parent: Path) -> None:
-    current = root
-    for part in parent.relative_to(root).parts:
-        current /= part
-        try:
-            current.mkdir(mode=0o700)
-        except FileExistsError:
-            pass
-        try:
-            mode = current.lstat().st_mode
-        except OSError as exc:
-            raise _path_error() from exc
-        if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-            raise _path_error()
-
-
-def _ensure_contained(root: Path, path: Path) -> None:
-    try:
-        path.resolve(strict=True).relative_to(root)
-    except (OSError, ValueError) as exc:
-        raise _path_error() from exc
-
-
-def _ensure_no_symlink_components(root: Path, parent: Path) -> None:
-    current = root
-    for part in parent.relative_to(root).parts:
-        current /= part
-        try:
-            if stat.S_ISLNK(current.lstat().st_mode):
-                raise _path_error()
-        except OSError as exc:
-            raise _path_error() from exc
-
-
-def _fsync_directory(path: Path) -> None:
+def _open_parent(root: Path, parts: tuple[str, ...]) -> int:
     flags = os.O_RDONLY
     if hasattr(os, "O_DIRECTORY"):
         flags |= os.O_DIRECTORY
-    descriptor = os.open(path, flags)
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
     try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+        for part in parts:
+            try:
+                next_fd = os.open(part, flags, dir_fd=current_fd)
+            except FileNotFoundError:
+                os.mkdir(part, mode=0o700, dir_fd=current_fd)
+                next_fd = os.open(part, flags, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = next_fd
+        return current_fd
+    except BaseException:
+        os.close(current_fd)
+        raise
 
 
 def _path_error() -> McpGrysterError:

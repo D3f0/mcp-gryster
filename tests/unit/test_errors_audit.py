@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,29 @@ def test_public_error_hides_remote_exception_input(
         assert secret not in public_json
         assert secret not in caplog.text
 
+
+def test_public_error_redacts_quoted_headers_and_response_repr(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "secret-token"
+    private_body = "private@example.test"
+    headers = {"Authorization": f"Bearer {secret}"}
+    response = {"records": [{"email": private_body}]}
+    exception = requests.RequestException(f"headers={headers!r}, response={response!r}")
+
+    with caplog.at_level(logging.DEBUG, logger="mcp_gryster.errors"):
+        error = public_error(exception)
+
+    assert error.code == "GRIST_REQUEST_FAILED"
+    assert secret not in caplog.text
+    assert private_body not in caplog.text
+
+
+def test_requests_value_error_subclass_is_remote_failure() -> None:
+    error = public_error(requests.exceptions.MissingSchema("private URL input"))
+
+    assert error.code == "GRIST_REQUEST_FAILED"
+    assert "private URL input" not in error.model_dump_json()
 
 def test_public_error_preserves_known_safe_local_error() -> None:
     original = McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed")
@@ -143,3 +167,40 @@ def test_artifact_store_rejects_symlink_parent(tmp_path: Path) -> None:
 
     assert caught.value.code == "PATH_NOT_ALLOWED"
     assert not (outside / "index.html").exists()
+
+
+def test_artifact_store_anchors_replace_when_parent_is_substituted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    store = ArtifactStore(root)
+    original_replace = os.replace
+
+    def substitute_parent(
+        source: str,
+        destination: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        preview = root / "preview"
+        displaced = root / "displaced"
+        preview.rename(displaced)
+        preview.symlink_to(outside, target_is_directory=True)
+        original_replace(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+        )
+
+    monkeypatch.setattr(os, "replace", substitute_parent)
+
+    with pytest.raises(McpGrysterError) as caught:
+        store.put_bytes("preview", "index.html", b"safe")
+
+    assert caught.value.code == "PATH_NOT_ALLOWED"
+    assert not (outside / "index.html").exists()
+    assert (root / "displaced" / "index.html").read_bytes() == b"safe"

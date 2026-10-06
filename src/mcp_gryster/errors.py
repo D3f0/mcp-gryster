@@ -26,12 +26,14 @@ type ErrorCode = Literal[
 
 _logger = logging.getLogger(__name__)
 _AUTHORIZATION = re.compile(
-    r"(?i)(authorization\s*:\s*)(?:bearer\s+)?[^\s,;]+"
+    r"(?i)((?:['\"]?authorization['\"]?\s*[:=]\s*['\"]?)(?:bearer\s+)?)[^'\"\s,;}]+"
 )
 _KEY_VALUE_SECRET = re.compile(
     r"(?i)((?:api[-_ ]?key|token|password|secret)\s*[=:]\s*)[^\s,;]+"
 )
-_JSON_BODY = re.compile(r"(?is)(body\s*[=:]\s*)(\{.*\}|\[.*\])")
+_STRUCTURED_PAYLOAD = re.compile(
+    r"(?is)((?:body|response)\s*[=:]\s*)(?:\{.*\}|\[.*\]|['\"].*?['\"])(?=\s*(?:,|[a-z_]+\s*=|$))"
+)
 _ABSOLUTE_PATH = re.compile(r"(?<![\w.])/(?:[^\s,;]+/)*[^\s,;]*")
 _WINDOWS_PATH = re.compile(r"(?i)(?<![\w])(?:[a-z]:\\)(?:[^\s,;]+\\)*[^\s,;]*")
 
@@ -123,11 +125,11 @@ def public_error(exc: BaseException) -> McpGrysterError:
 
 
 def _classify(exc: BaseException) -> tuple[ErrorCode, str]:
+    if _is_remote_failure(exc):
+        return "GRIST_REQUEST_FAILED", "The Grist request failed"
     for exception_type, code, message in _LOCAL_ERRORS:
         if isinstance(exc, exception_type):
             return code, message
-    if _is_remote_failure(exc):
-        return "GRIST_REQUEST_FAILED", "The Grist request failed"
     return "GRIST_REQUEST_FAILED", "The Grist request failed"
 
 
@@ -140,7 +142,7 @@ def _redact_debug_text(value: str) -> str:
     """Remove credentials, bodies, and local absolute paths from diagnostic text."""
     redacted = _AUTHORIZATION.sub(r"\1[REDACTED]", value)
     redacted = _KEY_VALUE_SECRET.sub(r"\1[REDACTED]", redacted)
-    redacted = _JSON_BODY.sub(r"\1[REDACTED]", redacted)
+    redacted = _STRUCTURED_PAYLOAD.sub(r"\1[REDACTED]", redacted)
     redacted = _WINDOWS_PATH.sub("[PATH]", redacted)
     redacted = _ABSOLUTE_PATH.sub("[PATH]", redacted)
     home = str(Path.home())
