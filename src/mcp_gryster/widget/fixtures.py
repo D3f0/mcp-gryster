@@ -287,6 +287,12 @@ class FixtureManager:
         allowed = {column.id for column in fixture.columns}
         if len(allowed) != len(fixture.columns):
             raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
+        for mapping in fixture.mappings.values():
+            column_ids = (mapping,) if isinstance(mapping, str) else mapping
+            if not column_ids or len(column_ids) != len(set(column_ids)):
+                raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
+            if any(column_id not in allowed for column_id in column_ids):
+                raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
         for record in fixture.records:
             if not set(record.fields).issubset(allowed):
                 raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")

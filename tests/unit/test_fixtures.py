@@ -153,6 +153,23 @@ def test_client_fixture_commits_against_expected_revision_and_returns_safe_summa
     assert store.read("safe-widget").revision == summary.revision
 
 
+def test_fixture_accepts_scalar_and_list_column_mappings(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    initial = _project(store)
+    manager = FixtureManager(store, FakeAdapter({}), settings)
+
+    scalar = manager.create("safe-widget", _client_fixture(initial))
+    listed = manager.create(
+        "safe-widget",
+        _client_fixture(scalar.revision, fixtureId="listed", mappings={"name": ["Name"]}),
+    )
+
+    assert json.loads(_fixture_bytes(store, listed.revision, "listed"))["mappings"] == {
+        "name": ["Name"]
+    }
+
+
 def test_columns_are_a_required_non_empty_allowlist(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     store = _store(settings)

@@ -144,6 +144,25 @@ class FixtureRecord(BaseModel):
     fields: dict[str, Any]
 
 
+type FixtureMapping = str | tuple[str, ...]
+
+
+class StoredPreviewFixture(BaseModel):
+    """Fixture schema persisted after optimistic-concurrency validation."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    fixture_id: str = Field(alias="fixtureId", min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    source: FixtureSource
+    columns: tuple[FixtureColumn, ...] = Field(min_length=1)
+    records: tuple[FixtureRecord, ...]
+    selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
+    mappings: dict[str, FixtureMapping] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
+    access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
+
+
 class PreviewFixture(BaseModel):
     """Validated client-provided fixture committed into a project revision."""
 
@@ -156,7 +175,7 @@ class PreviewFixture(BaseModel):
     columns: tuple[FixtureColumn, ...] = Field(min_length=1)
     records: tuple[FixtureRecord, ...]
     selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
-    mappings: dict[str, str] = Field(default_factory=dict)
+    mappings: dict[str, FixtureMapping] = Field(default_factory=dict)
     options: dict[str, Any] = Field(default_factory=dict)
     access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
 
@@ -178,7 +197,7 @@ class GristFixtureRequest(BaseModel):
     table_id: str = Field(alias="tableId", min_length=1)
     columns: tuple[str, ...] = Field(min_length=1)
     selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
-    mappings: dict[str, str] = Field(default_factory=dict)
+    mappings: dict[str, FixtureMapping] = Field(default_factory=dict)
     options: dict[str, Any] = Field(default_factory=dict)
     access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
     include_attachment_metadata: bool = Field(default=False, alias="includeAttachmentMetadata")

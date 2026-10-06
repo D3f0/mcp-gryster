@@ -33,3 +33,13 @@ Executed successfully:
 
 - Preview evidence is intentionally in-memory and minimal for Task 9 injection; it records only project ID, revision, fixture ID, and success.
 - Static analysis deliberately reports dynamic `grist.ready` configuration as `DYNAMIC_PLUGIN_CONFIG` rather than attempting evaluation.
+
+## Review Round 1
+
+- Added a persisted fixture schema without request-only `expectedRevision` and support for scalar/list mappings.
+- Corrected zero-argument/default-access `grist.ready` semantics and direct-call AST recognition.
+- Added parameterized Grist type support, `Any`/alternative contract matching, and full ready column contract comparison.
+- Added value-free `INLINE_SCRIPT` and `UNUSED_FIXTURE_COLUMN` findings.
+- Mapping multiplicity now follows mapping value shape rather than Grist column type.
+- Added focused regression coverage for every review finding before implementation.
+- Per controller instruction, no checks were executed in this review round.

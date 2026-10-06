@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from tree_sitter import Language, Node, Parser
 
 from mcp_gryster.errors import McpGrysterError
-from mcp_gryster.widget.models import PreviewFixture, WidgetMetadata
+from mcp_gryster.widget.models import StoredPreviewFixture, WidgetColumn, WidgetMetadata
 from mcp_gryster.widget.paths import normalize_authored_path
 from mcp_gryster.widget.projects import ProjectStore
 
@@ -126,7 +126,7 @@ class _DocumentParser(HTMLParser):
 
 class _JavaScriptFacts:
     def __init__(self) -> None:
-        self.ready_configs: list[tuple[Node | None, bytes]] = []
+        self.ready_configs: list[tuple[bool, Node | None, bytes]] = []
         self.grist_members: list[str] = []
         self.first_grist_script: int | None = None
         self.has_syntax_error = False
@@ -196,6 +196,10 @@ class WidgetValidator:
             if not _is_external(asset)
         ):
             issues.append(_issue("ASSET_MISSING", "error", "A local widget asset is missing", "asset"))
+        if any(script.source is None and script.content for script in document.scripts):
+            issues.append(
+                _issue("INLINE_SCRIPT", "warning", "Widget contains inline JavaScript", "script")
+            )
         javascript, plugin_scripts = _javascript_sources(document, files, base)
         facts = _analyze_javascript(javascript)
         if facts.has_syntax_error:
@@ -266,17 +270,23 @@ def _javascript_issues(
     if not facts.ready_configs:
         issues.append(_issue("GRIST_READY_MISSING", "error", "Widget does not initialize Grist", "javascript"))
     else:
-        node, source = facts.ready_configs[0]
-        config = _literal_ready_config(node, source)
+        has_argument, node, source = facts.ready_configs[0]
+        config = _literal_ready_config(has_argument, node, source)
         if config is None:
             issues.append(_issue("DYNAMIC_PLUGIN_CONFIG", "error", "Grist config is not statically verifiable", "javascript"))
         else:
             access, columns = config
-            if access is not None and access != metadata.access_level:
+            if access != metadata.access_level:
                 issues.append(_issue("READY_ACCESS_MISMATCH", "error", "Grist access differs from metadata", "access"))
-            names = {name for name, _ in columns}
-            if any(column.name not in names for column in metadata.columns):
+            ready_by_name = {column.name: column for column in columns}
+            if any(column.name not in ready_by_name for column in metadata.columns):
                 issues.append(_issue("DECLARED_COLUMN_MISSING", "error", "Metadata column is absent from initialization", "column"))
+            if set(ready_by_name) != {column.name for column in metadata.columns} or any(
+                not _column_contract_matches(column, ready_by_name[column.name])
+                for column in metadata.columns
+                if column.name in ready_by_name
+            ):
+                issues.append(_issue("READY_COLUMN_MISMATCH", "error", "Grist column contract differs from metadata", "column"))
     if any(member not in _ALLOWED_GRIST_MEMBERS for member in facts.grist_members):
         issues.append(_issue("UNSUPPORTED_GRIST_MEMBER", "warning", "JavaScript uses an unsupported Grist member", "javascript"))
     return issues
@@ -293,12 +303,12 @@ def _fixture_issues(
     if raw is None:
         return [_issue("FIXTURE_MISSING", "error", "Fixture is missing", "fixture")]
     try:
-        fixture = PreviewFixture.model_validate_json(raw)
+        fixture = StoredPreviewFixture.model_validate_json(raw)
     except (ValidationError, ValueError):
         return [_issue("FIXTURE_INVALID", "error", "Fixture is invalid", "fixture")]
     issues: list[ValidationIssue] = []
     fixture_columns = {column.id: column for column in fixture.columns}
-    if any(column.type not in ALLOWED_GRIST_COLUMN_TYPES for column in fixture.columns):
+    if any(_base_type(column.type) not in ALLOWED_GRIST_COLUMN_TYPES for column in fixture.columns):
         issues.append(_issue("FIXTURE_TYPE_UNSUPPORTED", "error", "Fixture has an unsupported column type", "column"))
     for declaration in metadata.columns:
         mapped = fixture.mappings.get(declaration.name)
@@ -306,14 +316,22 @@ def _fixture_issues(
             if not declaration.optional:
                 issues.append(_issue("FIXTURE_REQUIRED_COLUMN", "error", "Fixture lacks a required mapping", "mapping"))
             continue
-        column = fixture_columns.get(mapped)
-        if column is None:
+        mapped_ids = (mapped,) if isinstance(mapped, str) else mapped
+        mapped_columns = [fixture_columns[column_id] for column_id in mapped_ids if column_id in fixture_columns]
+        if len(mapped_columns) != len(mapped_ids):
             issues.append(_issue("FIXTURE_REQUIRED_COLUMN", "error", "Fixture mapping lacks a column", "mapping"))
             continue
-        if _base_type(column.type) != _base_type(declaration.type):
+        if any(not _type_matches(declaration.type, column.type) for column in mapped_columns):
             issues.append(_issue("FIXTURE_TYPE_MISMATCH", "error", "Fixture column type is incompatible", "column"))
-        if not declaration.allow_multiple and column.type in {"ChoiceList", "RefList"}:
+        if declaration.allow_multiple != (not isinstance(mapped, str)):
             issues.append(_issue("FIXTURE_MAPPING_MULTIPLICITY", "error", "Fixture mapping multiplicity is incompatible", "mapping"))
+    referenced = {
+        column_id
+        for mapping in fixture.mappings.values()
+        for column_id in ((mapping,) if isinstance(mapping, str) else mapping)
+    }
+    if any(column.id not in referenced for column in fixture.columns):
+        issues.append(_issue("UNUSED_FIXTURE_COLUMN", "warning", "Fixture column is unused", "column"))
     if fixture.selected_record_id is not None and all(
         record.id != fixture.selected_record_id for record in fixture.records
     ):
@@ -362,10 +380,15 @@ def _analyze_javascript(sources: Iterable[tuple[int, bytes]]) -> _JavaScriptFact
             facts.grist_members.append(member)
             if facts.first_grist_script is None:
                 facts.first_grist_script = script_index
-            if member == "ready" and node.parent is not None and node.parent.type == "call_expression":
+            if (
+                member == "ready"
+                and node.parent is not None
+                and node.parent.type == "call_expression"
+                and node.parent.child_by_field_name("function") == node
+            ):
                 arguments = node.parent.child_by_field_name("arguments")
                 named = arguments.named_children if arguments is not None else []
-                facts.ready_configs.append((named[0] if len(named) == 1 else None, source))
+                facts.ready_configs.append((bool(named), named[0] if len(named) == 1 else None, source))
     return facts
 
 
@@ -382,19 +405,22 @@ def _node_text(source: bytes, node: Node) -> str:
 
 
 def _literal_ready_config(
-    config: Node | None, source: bytes
-) -> tuple[str | None, tuple[tuple[str, str], ...]] | None:
+    has_argument: bool, config: Node | None, source: bytes
+) -> tuple[str, tuple[WidgetColumn, ...]] | None:
+    if not has_argument:
+        return "none", ()
     if config is None or config.type != "object":
         return None
     values = _object_values(config, source)
     if values is None:
         return None
-    access: str | None = None
+    access = "none"
     if "requiredAccess" in values:
-        access = _literal_string(values["requiredAccess"], source)
-        if access is None:
+        parsed_access = _literal_string(values["requiredAccess"], source)
+        if parsed_access not in _ACCESS_RANK:
             return None
-    columns: list[tuple[str, str]] = []
+        access = parsed_access
+    columns: list[WidgetColumn] = []
     columns_node = values.get("columns")
     if columns_node is not None:
         if columns_node.type != "array":
@@ -407,7 +433,15 @@ def _literal_ready_config(
             column_type = _literal_string(item_values["type"], source)
             if name is None or column_type is None:
                 return None
-            columns.append((name, column_type))
+            optional = _literal_bool(item_values.get("optional"), source, default=False)
+            allow_multiple = _literal_bool(item_values.get("allowMultiple"), source, default=False)
+            if optional is None or allow_multiple is None:
+                return None
+            columns.append(
+                WidgetColumn(
+                    name=name, type=column_type, optional=optional, allowMultiple=allow_multiple
+                )
+            )
     return access, tuple(columns)
 
 
@@ -436,6 +470,28 @@ def _literal_string(node: Node, source: bytes) -> str | None:
     if len(text) < 2 or text[0] not in {'"', "'"} or text[-1] != text[0] or "\\" in text[1:-1]:
         return None
     return text[1:-1]
+
+def _literal_bool(node: Node | None, source: bytes, *, default: bool) -> bool | None:
+    if node is None:
+        return default
+    if node.type == "true":
+        return True
+    if node.type == "false":
+        return False
+    return None
+
+
+def _type_matches(declared: str, actual: str) -> bool:
+    alternatives = {_base_type(value.strip()) for value in declared.split(",") if value.strip()}
+    return "Any" in alternatives or _base_type(actual) in alternatives
+
+
+def _column_contract_matches(declared: WidgetColumn, ready: WidgetColumn) -> bool:
+    return (
+        _type_matches(declared.type, ready.type)
+        and declared.optional == ready.optional
+        and declared.allow_multiple == ready.allow_multiple
+    )
 
 
 def _base_type(column_type: str) -> str:
