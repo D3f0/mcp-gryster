@@ -56,3 +56,8 @@ Executed successfully:
 
 - Sorted `widget.__all__` exports lexicographically to satisfy RUF022.
 - Per controller instruction, no checks were executed for this mechanical fix.
+
+## Final Mechanical Fix
+
+- Moved `PreviewFixture` after `PreviewEvidenceStore` in `widget.__all__` to satisfy export ordering.
+- Per controller instruction, no checks were executed for this mechanical fix.
