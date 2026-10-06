@@ -45,3 +45,8 @@ uv run mypy src/mcp_gryster/widget
 - Controller verified 41/41 Task 6 tests with pristine output and Ruff passed.
 - Replaced the duck-typed `Any` constructor branch with explicit overloads for `Settings` and `str | Path`, plus `isinstance(Settings)` narrowing in the implementation. Both supported construction patterns remain unchanged while strict mypy can resolve settings limit attributes.
 - No checks were executed after this typing-only fix, per controller instruction. Expected verification remains `uv run mypy src/mcp_gryster/widget`.
+
+## Controller constructor narrowing follow-up
+
+- Strict mypy still retained the original constructor union after assignment through an optional settings alias. The constructor now uses direct `isinstance(Settings)` branching and assigns a separately annotated `workspace_path: str | Path`; `Path` receives only that narrowed local.
+- No checks were executed after this typing-only fix, per controller instruction.

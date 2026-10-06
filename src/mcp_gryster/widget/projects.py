@@ -57,20 +57,21 @@ class ProjectStore:
         max_files: int = 256,
         max_aggregate_bytes: int | None = None,
     ) -> None:
-        settings = workspace if isinstance(workspace, Settings) else None
-        if settings is not None:
-            workspace = settings.workspace_root
+        if isinstance(workspace, Settings):
+            workspace_path: str | Path = workspace.workspace_root
             if max_file_bytes is None:
-                max_file_bytes = settings.max_file_bytes
+                max_file_bytes = workspace.max_file_bytes
             if max_aggregate_bytes is None:
-                max_aggregate_bytes = settings.max_aggregate_bytes
+                max_aggregate_bytes = workspace.max_aggregate_bytes
+        else:
+            workspace_path = workspace
         if max_file_bytes is None:
             max_file_bytes = 5 * 1024 * 1024
         if max_aggregate_bytes is None:
             max_aggregate_bytes = 25 * 1024 * 1024
         if min(max_file_bytes, max_files, max_aggregate_bytes) <= 0:
             raise ValueError("project limits must be positive")
-        requested = Path(workspace).expanduser().absolute()
+        requested = Path(workspace_path).expanduser().absolute()
         _reject_symlink_components(requested)
         try:
             requested.mkdir(parents=True, exist_ok=True, mode=0o700)
