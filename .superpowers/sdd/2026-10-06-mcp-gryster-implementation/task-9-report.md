@@ -1,0 +1,46 @@
+# Task 9 Report
+
+## Status
+
+Implemented the capability-scoped loopback preview server and in-browser Grist fixture emulator.
+
+## Delivered
+
+- Added `PreviewManager.start`, `stop`, and `stop_all` with isolated Uvicorn servers bound to ephemeral IPv4 loopback ports.
+- Added high-entropy capability URLs, exact Host/Origin enforcement, no directory listing, strict static MIME allowlisting, traversal and cross-project denial, no-store/nosniff responses, and same-origin framing.
+- Fixture preview uses a static harness and injects the packaged bridge only into an in-memory copy of authored HTML; live preview serves authored static files unchanged and exposes no emulator routes.
+- Added a fake `grist` bridge with callback registration, deterministic options/records/selected-record dispatch, column mapping, access-controlled in-memory table reads/writes, and named unsupported-operation errors.
+- Added serialized, schema-constrained, value-free statuses and evidence recording only after a valid successful handshake. Unsupported calls and uncaught failures permanently disqualify a session from evidence.
+- Integrated `PreviewManager` and the Task 8 `PreviewEvidenceStore` into the FastMCP lifespan, with `stop_all()` guaranteed on shutdown.
+- Exported preview APIs from `mcp_gryster.widget`.
+- Added explicit pinned Starlette/Uvicorn runtime dependencies and regenerated `uv.lock` without installing packages.
+- Added explicit Hatch wheel configuration and force-included the harness and bridge static resources.
+- Added server, browser, bridge, evidence, live-mode, and lifespan tests.
+- Documented loopback preview security behavior in the existing README.
+
+## Verification
+
+Executed successfully:
+
+- `.venv/bin/python .preview-smoke.py` — started an actual live preview, fetched the authored entrypoint over loopback with `nosniff`, stopped it, and observed `200 … nosniff True`; the throwaway script/workspace were removed.
+- `python3 -m py_compile src/mcp_gryster/widget/preview.py src/mcp_gryster/app.py tests/unit/test_preview.py tests/unit/test_app.py`
+- `node --check src/mcp_gryster/widget/static/grist-bridge.js`
+- `uv lock` — resolved 100 packages and refreshed direct dependency metadata without package installation.
+- `uv lock --check` — resolved successfully.
+- `git diff --check` — clean.
+
+## Unexecuted Verification
+
+Per assignment, the controller owns these commands and browser installation; they were not run:
+
+- `uv run playwright install chromium`
+- `uv run pytest tests/unit/test_preview.py -v`
+- `uv run pytest -m 'not integration'`
+- `uv run ruff check src/mcp_gryster/widget tests/unit/test_preview.py`
+- `uv run mypy src/mcp_gryster/widget`
+- build/formatter commands
+
+## Concerns
+
+- Chromium browser behavior remains unexecuted until the controller installs/runs Playwright. The tests deliberately accept the browser-reported runtime column while requiring the sanitized location to identify `app.js` line 1.
+- Preview status and evidence are process-local by design, matching the Task 8 injected evidence store.

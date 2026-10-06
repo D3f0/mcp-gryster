@@ -16,6 +16,12 @@ from mcp_gryster.widget.models import (
     WidgetColumn,
     WidgetMetadata,
 )
+from mcp_gryster.widget.preview import (
+    PreviewManager,
+    PreviewSession,
+    PreviewStatus,
+    StopPreviewResult,
+)
 from mcp_gryster.widget.projects import ProjectStore
 from mcp_gryster.widget.validation import (
     ALLOWED_GRIST_COLUMN_TYPES,
@@ -39,9 +45,13 @@ __all__ = [
     "PreviewEvidence",
     "PreviewEvidenceStore",
     "PreviewFixture",
+    "PreviewManager",
+    "PreviewSession",
+    "PreviewStatus",
     "ProjectSnapshot",
     "ProjectStore",
     "StoredPreviewFixture",
+    "StopPreviewResult",
     "ValidationIssue",
     "ValidationReport",
     "WidgetAuthor",

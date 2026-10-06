@@ -17,6 +17,9 @@ from mcp_gryster.grist.adapter import GristAdapter
 from mcp_gryster.grist.policy import Policy
 from mcp_gryster.grist.registry import load_registry
 from mcp_gryster.grist.tools import register_grist_tools
+from mcp_gryster.widget.preview import PreviewManager
+from mcp_gryster.widget.projects import ProjectStore
+from mcp_gryster.widget.validation import PreviewEvidenceStore
 
 
 def create_app(settings: Settings) -> FastMCP:
@@ -37,17 +40,26 @@ def create_app(settings: Settings) -> FastMCP:
         return GristAdapter(registry, policy, artifacts, settings, audit)
 
     adapter = adapter_factory()
+    project_store = ProjectStore(settings)
+    preview_evidence = PreviewEvidenceStore()
+    preview_manager = PreviewManager(project_store, preview_evidence)
 
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
-        yield {
-            "settings": settings,
-            "registry": registry,
-            "policy": policy,
-            "artifacts": artifacts,
-            "adapter_factory": adapter_factory,
-            "adapter": adapter,
-        }
+        try:
+            yield {
+                "settings": settings,
+                "registry": registry,
+                "policy": policy,
+                "artifacts": artifacts,
+                "adapter_factory": adapter_factory,
+                "adapter": adapter,
+                "project_store": project_store,
+                "preview_evidence": preview_evidence,
+                "preview_manager": preview_manager,
+            }
+        finally:
+            await preview_manager.stop_all()
 
     app = FastMCP(
         "mcp-gryster",

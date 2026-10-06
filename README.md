@@ -36,3 +36,5 @@ Grist operations are checked against explicit per-domain `none`, `read`, or `wri
 ## Extra: custom-widget authoring
 
 As an additional capability, MCP clients can author plain HTML, CSS, and JavaScript custom widgets in managed workspace projects. The server supports controlled project mutation, Grist-backed preview fixtures, validation, local preview, and deployable packaging; it does not invoke an LLM itself.
+
+Fixture previews run on ephemeral IPv4 loopback ports behind per-session capability URLs. They expose only the selected immutable project revision, use a sanitized in-memory Grist bridge, and record successful preview evidence without retaining fixture or source bodies. Live previews serve authored static files unchanged.
