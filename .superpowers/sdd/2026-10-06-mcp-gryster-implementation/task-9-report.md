@@ -75,3 +75,9 @@ Per assignment, the controller owns these commands and browser installation; the
 - Added a browser regression that replaces `fetch`, appends the same bridge URL, verifies the duplicate is rejected and the nonce is never observed, then proves forged status does not prevent the genuine bridge handshake.
 - Reloading a fixture preview requires starting a new preview session so it receives a fresh one-shot bootstrap grant.
 - Per controller instruction, no checks were executed in this review fix round.
+
+## Review Fix Round 3
+
+- Removed regex-based head injection. The bridge script is now byte-prefixed immediately after a leading doctype (or before all authored bytes without one), guaranteeing parser-blocking bridge execution before any authored markup or script.
+- Extended the one-shot browser regression with an authored inline script before the explicit head that wraps `fetch`; the test proves authored code executes later, cannot observe the status nonce, cannot reload the bridge, and cannot forge evidence.
+- Per controller instruction, no checks were executed in this review fix round.

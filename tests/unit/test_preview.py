@@ -83,10 +83,14 @@ def _project(
             FileUpdate(
                 path="src/index.html",
                 content=(
-                    b"<!doctype html><html><head><link rel='stylesheet' href='style.css'></head>"
+                    b"<!doctype html><script>"
+                    b"window.authoredFetch = window.fetch; window.fetch = (...args) => { "
+                    b"document.documentElement.dataset.preHeadFetch = 'wrapped'; "
+                    b"return window.authoredFetch(...args); };</script>"
+                    b"<html><head><link rel='stylesheet' href='style.css'></head>"
                     b"<body><output id='rendered'>waiting</output><script src='app.js'></script>"
                     b"</body></html>"
-                ),
+                )
             ),
             FileUpdate(path="src/app.js", content=source),
             FileUpdate(path="src/style.css", content=b"output { color: green; }\n"),
@@ -269,6 +273,9 @@ grist.ready();
             await expect(body).to_have_attribute("data-bridge-reload", "rejected")
             await expect(body).to_have_attribute("data-forge-status", "sent")
             await expect(body).to_have_attribute("data-nonce-observed", "false")
+            await expect(frame.locator("html")).to_have_attribute(
+                "data-pre-head-fetch", "wrapped"
+            )
             await expect(body).to_have_attribute("data-mcp-gryster-handshake", "complete")
             await browser.close()
     finally:

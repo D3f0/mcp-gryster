@@ -47,7 +47,6 @@ _ALLOWED_MIME = MappingProxyType(
 )
 _SAFE_METHOD = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$.-]{0,79}$")
 _SAFE_LOCATION = re.compile(r"^[A-Za-z0-9._-]{1,100}:[0-9]{1,7}:[0-9]{1,7}$")
-_HEAD_ELEMENT = re.compile(br"<head(?:\s[^>]*)?>", re.IGNORECASE)
 
 
 class PreviewStatus(BaseModel):
@@ -438,11 +437,11 @@ def _asset_response(runtime: _Runtime, requested: str, *, inject_bridge: bool) -
     if inject_bridge and path.suffix.lower() == ".html":
         bridge_url = f"{runtime.origin}/t/{runtime.token}/grist-bridge.js"
         bridge = f'<script src="{bridge_url}"></script>'.encode()
-        match = _HEAD_ELEMENT.search(content)
-        if match is None:
-            content = bridge + content
+        doctype_end = content.lower().find(b">") if content.lower().startswith(b"<!doctype") else -1
+        if doctype_end >= 0:
+            content = content[: doctype_end + 1] + bridge + content[doctype_end + 1 :]
         else:
-            content = content[: match.end()] + bridge + content[match.end() :]
+            content = bridge + content
         headers.pop("X-Frame-Options")
         headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(
             "script-src 'self'", f"script-src 'self' {runtime.origin}"
