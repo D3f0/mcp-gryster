@@ -431,3 +431,116 @@ def test_client_fixture_redacts_records_and_restricts_attachment_metadata(tmp_pa
             "id": 1,
         }
     ]
+
+
+def test_source_materialization_uses_store_selection_and_omits_fixtures(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    revision = _project(store)
+    manager = FixtureManager(store, FakeAdapter({}), settings)
+    summary = manager.create("safe-widget", _client_fixture(revision))
+    destination = store.workspace / "source-only"
+
+    manager.materialize_sources("safe-widget", summary.revision, destination)
+
+    assert (destination / "widget.json").is_file()
+    assert (destination / "src" / "index.html").is_file()
+    assert not (destination / "fixtures").exists()
+
+
+def test_materialize_rejects_selected_path_missing_from_revision(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    revision = _project(store)
+
+    with pytest.raises(McpGrysterError) as caught:
+        store.materialize(
+            "safe-widget",
+            revision,
+            store.workspace / "missing-path",
+            include_paths=("widget.json", "src/missing.js"),
+        )
+    assert caught.value.code == "INVALID_ARGUMENT"
+    assert not (store.workspace / "missing-path").exists()
+
+
+def test_materialize_rejects_duplicate_selected_paths(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    revision = _project(store)
+
+    with pytest.raises(McpGrysterError) as caught:
+        store.materialize(
+            "safe-widget",
+            revision,
+            store.workspace / "duplicate-path",
+            include_paths=("widget.json", "widget.json"),
+        )
+
+    assert caught.value.code == "INVALID_ARGUMENT"
+    assert not (store.workspace / "duplicate-path").exists()
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"authorization": "private"},
+        {"nested": {"api_key": "private"}},
+        {"nested": [{"ApiKey": "private"}]},
+        {"note": "Bearer private"},
+        {"token": {"nested": "private"}},
+    ],
+)
+def test_nested_secret_metadata_is_rejected(tmp_path: Path, metadata: dict[str, Any]) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    revision = _project(store)
+    manager = FixtureManager(store, FakeAdapter({}), settings)
+
+    with pytest.raises(McpGrysterError) as caught:
+        manager.create("safe-widget", _client_fixture(revision, options=metadata))
+
+    assert caught.value.code == "VALIDATION_FAILED"
+    assert "private" not in str(caught.value)
+    assert store.read("safe-widget").revision == revision
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_numbers_are_rejected_before_commit(tmp_path: Path, value: float) -> None:
+    settings = _settings(tmp_path)
+    store = _store(settings)
+    revision = _project(store)
+    manager = FixtureManager(store, FakeAdapter({}), settings)
+
+    with pytest.raises(McpGrysterError) as caught:
+        manager.create(
+            "safe-widget",
+            _client_fixture(revision, records=[{"id": 1, "fields": {"Name": [value]}}]),
+        )
+
+    assert caught.value.code == "VALIDATION_FAILED"
+    assert store.read("safe-widget").revision == revision
+
+
+@pytest.mark.asyncio
+async def test_sensitive_column_label_is_redacted_with_its_value(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, redactions=(r"(?i)secret",))
+    store = _store(settings)
+    revision = _project(store)
+    results = _grist_results(records=[{"id": 1, "Name": "private value"}])
+    results["list_cols"] = GristCallResult(
+        status_code=200,
+        data=[{"id": "Name", "fields": {"label": "Secret Name", "type": "Text"}}],
+    )
+    manager = FixtureManager(store, FakeAdapter(results), settings)
+
+    summary = await manager.create_from_grist(_grist_request(revision))
+    fixture_bytes = _fixture_bytes(store, summary.revision)
+    payload = json.loads(fixture_bytes)
+
+    assert payload["columns"] == [{"id": "Name", "label": "[REDACTED]", "type": "Text"}]
+    assert payload["records"] == [{"fields": {"Name": "[REDACTED]"}, "id": 1}]
+    assert b"Secret Name" not in fixture_bytes
+    assert b"private value" not in fixture_bytes
+    assert "Secret Name" not in summary.model_dump_json()
+    assert "private value" not in summary.model_dump_json()

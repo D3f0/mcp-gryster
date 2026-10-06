@@ -34,3 +34,12 @@ Complete.
 ## Concerns
 
 - Packaging exclusion itself remains intentionally deferred to Task 10. Task 7 provides only `FixtureManager.source_materialization_paths` and its unit test as the source-only selector/interface.
+
+## Review Round 1
+
+- Added trusted `ProjectStore.materialize(..., include_paths=...)` selection with normalized, unique, revision-present path validation. Default materialization remains all files for preview compatibility.
+- Added `FixtureManager.materialize_sources`, which invokes the store with only `widget.json` and `src/` paths; its test verifies the destination contains no fixtures.
+- Replaced serialized metadata regex scanning with recursive key/value validation for authorization, API-key, token, and Bearer secrets.
+- Rejected recursive NaN and infinity values before commit and disabled non-standard JSON floats during serialization.
+- Applied column-name redaction to both IDs and labels, replacing sensitive labels and their values with `[REDACTED]`.
+- Focused verification: `uv run pytest tests/unit/test_fixtures.py -v` — 27 passed.

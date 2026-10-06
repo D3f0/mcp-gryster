@@ -203,8 +203,15 @@ class ProjectStore:
             self._replace_pointer(project, revision)
             return self._snapshot(project_id, revision, tuple(sorted(resulting)))
 
-    def materialize(self, project_id: str, revision: str, destination: str | Path) -> None:
-        """Copy a validated revision to an unused destination below the workspace."""
+    def materialize(
+        self,
+        project_id: str,
+        revision: str,
+        destination: str | Path,
+        *,
+        include_paths: Sequence[str] | None = None,
+    ) -> None:
+        """Copy all or an explicit trusted file selection from one validated revision."""
         project_id = validate_project_id(project_id)
         revision = validate_revision(revision)
         destination_path = _canonical_destination(Path(destination).expanduser())
@@ -218,6 +225,15 @@ class ProjectStore:
                     {"current_revision": current_revision},
                 )
             files = self._read_revision(project, revision)
+            if include_paths is not None:
+                normalized_paths = tuple(normalize_authored_path(path) for path in include_paths)
+                if len(normalized_paths) != len(set(normalized_paths)):
+                    raise McpGrysterError("INVALID_ARGUMENT", "Materialization paths must be unique")
+                if any(path not in files for path in normalized_paths):
+                    raise McpGrysterError(
+                        "INVALID_ARGUMENT", "Materialization path is not in the project revision"
+                    )
+                files = {path: files[path] for path in normalized_paths}
             self._validate_destination(destination_path)
             if destination_path.exists() or destination_path.is_symlink():
                 raise _path_error()

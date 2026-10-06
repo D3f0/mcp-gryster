@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 from pydantic import ValidationError
@@ -28,9 +30,9 @@ from mcp_gryster.widget.projects import ProjectStore
 _REDACTED = "[REDACTED]"
 _MAX_JSON_DEPTH = 20
 _ATTACHMENT_TYPES = frozenset({"Attachment", "Attachments"})
-_SECRET_METADATA = re.compile(
-    r"(?i)(?:authorization\s*:\s*(?:bearer\s+)?\S+|api[-_ ]?key\s*[=:]\s*\S+)"
-)
+_SECRET_KEYS = frozenset({"authorization", "apikey", "token"})
+_BEARER_VALUE = re.compile(r"(?i)\bbearer\s+\S+")
+_SECRET_ASSIGNMENT = re.compile(r"(?i)^\s*(?:authorization|api[-_ ]?key|token)\s*[:=]")
 
 
 class _Adapter(Protocol):
@@ -58,6 +60,21 @@ class FixtureManager:
     def source_materialization_paths(files: Sequence[str]) -> tuple[str, ...]:
         """Select authored source and widget metadata while excluding private fixtures."""
         return tuple(path for path in files if path == "widget.json" or path.startswith("src/"))
+
+    def materialize_sources(
+        self,
+        project_id: str,
+        revision: str,
+        destination: str | Path,
+    ) -> None:
+        """Materialize only widget metadata and authored source, never fixtures."""
+        snapshot = self._store.read(project_id)
+        self._store.materialize(
+            project_id,
+            revision,
+            destination,
+            include_paths=self.source_materialization_paths(snapshot.files),
+        )
 
     def create(
         self,
@@ -184,8 +201,8 @@ class FixtureManager:
                 raise FixtureManager._grist_shape_error() from exc
         return columns
 
-    @staticmethod
     def _select_columns(
+        self,
         available: Mapping[str, FixtureColumn],
         requested: Sequence[str],
         include_attachment_metadata: bool,
@@ -199,7 +216,8 @@ class FixtureManager:
                 raise McpGrysterError(
                     "INVALID_ARGUMENT", "Attachment fixture columns require explicit metadata opt-in"
                 )
-            selected.append(column)
+            label = _REDACTED if self._column_is_sensitive(column) else column.label
+            selected.append(column.model_copy(update={"label": label}))
         return tuple(selected)
 
     def _select_records(
@@ -223,7 +241,11 @@ class FixtureManager:
                 value: Any = row[column.id]
                 if column.type in _ATTACHMENT_TYPES and include_attachment_metadata:
                     value = self._attachment_ids(value)
-                fields[column.id] = self._redact_value(column.id, value)
+                fields[column.id] = self._redact_value(
+                    column.id,
+                    value,
+                    sensitive=column.label == _REDACTED,
+                )
             selected.append(FixtureRecord(id=record_id, fields=fields))
         return tuple(selected)
 
@@ -245,9 +267,19 @@ class FixtureManager:
                     raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
                 if column.type in _ATTACHMENT_TYPES:
                     value = self._attachment_ids(value)
-                fields[column_id] = self._redact_value(column_id, value)
+                fields[column_id] = self._redact_value(
+                    column_id,
+                    value,
+                    sensitive=self._column_is_sensitive(column),
+                )
             records.append(FixtureRecord(id=record.id, fields=fields))
-        return fixture.model_copy(update={"records": tuple(records)})
+        safe_columns = tuple(
+            column.model_copy(update={"label": _REDACTED})
+            if self._column_is_sensitive(column)
+            else column
+            for column in fixture.columns
+        )
+        return fixture.model_copy(update={"columns": safe_columns, "records": tuple(records)})
 
     def _validate_fixture_shape(self, fixture: PreviewFixture) -> None:
         if len(fixture.records) > self._max_rows:
@@ -289,13 +321,27 @@ class FixtureManager:
             exclude={"expected_revision"},
             mode="json",
         )
-        payload = (json.dumps(data, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        payload = (
+            json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+        ).encode()
         if len(payload) > self._max_bytes:
             raise self._limit_error()
         return payload
 
-    def _redact_value(self, column_name: str, value: JsonValue) -> JsonValue:
-        if any(pattern.search(column_name) for pattern in self._redactions):
+    def _column_is_sensitive(self, column: FixtureColumn) -> bool:
+        return any(
+            pattern.search(column.id) or pattern.search(column.label)
+            for pattern in self._redactions
+        )
+
+    def _redact_value(
+        self,
+        column_name: str,
+        value: JsonValue,
+        *,
+        sensitive: bool = False,
+    ) -> JsonValue:
+        if sensitive or any(pattern.search(column_name) for pattern in self._redactions):
             return _REDACTED
         if isinstance(value, str) and any(pattern.search(value) for pattern in self._redactions):
             return _REDACTED
@@ -347,14 +393,31 @@ class FixtureManager:
             exclude={"records", "expected_revision"},
             mode="json",
         )
-        encoded = json.dumps(metadata, sort_keys=True)
-        if _SECRET_METADATA.search(encoded):
-            raise McpGrysterError("VALIDATION_FAILED", "Fixture metadata is invalid")
+        FixtureManager._reject_secrets(metadata)
+
+    @staticmethod
+    def _reject_secrets(value: Any) -> None:
+        if isinstance(value, str):
+            if _BEARER_VALUE.search(value):
+                raise McpGrysterError("VALIDATION_FAILED", "Fixture metadata is invalid")
+            return
+        if isinstance(value, list):
+            for item in value:
+                FixtureManager._reject_secrets(item)
+            return
+        if isinstance(value, dict):
+            for key, item in value.items():
+                normalized_key = "".join(character for character in key.lower() if character.isalnum())
+                if normalized_key in _SECRET_KEYS or _SECRET_ASSIGNMENT.search(key):
+                    raise McpGrysterError("VALIDATION_FAILED", "Fixture metadata is invalid")
+                FixtureManager._reject_secrets(item)
 
     @staticmethod
     def _validate_json_value(value: Any, *, depth: int) -> None:
         if depth > _MAX_JSON_DEPTH:
             raise FixtureManager._limit_error()
+        if isinstance(value, float) and not math.isfinite(value):
+            raise McpGrysterError("VALIDATION_FAILED", "Fixture contains a non-finite number")
         if value is None or isinstance(value, (bool, int, float, str)):
             return
         if isinstance(value, list):
