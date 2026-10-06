@@ -11,8 +11,9 @@ import stat
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, overload
 
+from mcp_gryster.config import Settings
 from mcp_gryster.errors import McpGrysterError
 from mcp_gryster.widget.models import FileUpdate, ProjectSnapshot, WidgetMetadata
 from mcp_gryster.widget.paths import (
@@ -28,15 +29,35 @@ _STATE_DIRECTORY = ".mcp-gryster"
 class ProjectStore:
     """Manage complete immutable authored trees behind one atomic revision pointer."""
 
+    @overload
     def __init__(
         self,
-        workspace: str | Path | Any,
+        workspace: Settings,
+        *,
+        max_file_bytes: int | None = None,
+        max_files: int = 256,
+        max_aggregate_bytes: int | None = None,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self,
+        workspace: str | Path,
+        *,
+        max_file_bytes: int | None = None,
+        max_files: int = 256,
+        max_aggregate_bytes: int | None = None,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        workspace: str | Path | Settings,
         *,
         max_file_bytes: int | None = None,
         max_files: int = 256,
         max_aggregate_bytes: int | None = None,
     ) -> None:
-        settings = workspace if hasattr(workspace, "workspace_root") else None
+        settings = workspace if isinstance(workspace, Settings) else None
         if settings is not None:
             workspace = settings.workspace_root
             if max_file_bytes is None:

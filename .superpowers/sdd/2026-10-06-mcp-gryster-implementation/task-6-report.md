@@ -39,3 +39,9 @@ uv run mypy src/mcp_gryster/widget
 - Store mutation is serialized within one `ProjectStore` process by an `RLock`; cross-process compare-and-swap semantics are not provided. Each publication remains filesystem-atomic, but multiple independently constructed writer processes must be externally serialized.
 - Materialization deliberately requires a new destination below the configured workspace and rejects paths inside `.mcp-gryster/projects`; callers that need another destination must first validate it into an owned workspace path.
 - No Grist version pin was introduced; Task 6 is independent of the Grist 1.7.19 compatibility target.
+
+## Controller strict-typing fix
+
+- Controller verified 41/41 Task 6 tests with pristine output and Ruff passed.
+- Replaced the duck-typed `Any` constructor branch with explicit overloads for `Settings` and `str | Path`, plus `isinstance(Settings)` narrowing in the implementation. Both supported construction patterns remain unchanged while strict mypy can resolve settings limit attributes.
+- No checks were executed after this typing-only fix, per controller instruction. Expected verification remains `uv run mypy src/mcp_gryster/widget`.
