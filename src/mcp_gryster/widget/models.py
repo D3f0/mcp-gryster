@@ -113,3 +113,110 @@ class ProjectSnapshot(BaseModel):
         if normalized != tuple(sorted(set(normalized))):
             raise ValueError("files must be unique and sorted")
         return normalized
+
+
+class FixtureColumn(BaseModel):
+    """One explicitly allowlisted fixture column."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    type: str = Field(min_length=1)
+
+
+class FixtureSource(BaseModel):
+    """Non-sensitive identifiers describing a fixture's source."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    doc_id: str = Field(alias="docId", min_length=1)
+    table_id: str = Field(alias="tableId", min_length=1)
+    captured_at: str = Field(alias="capturedAt", min_length=1)
+
+
+class FixtureRecord(BaseModel):
+    """One fixture record containing only explicitly selected fields."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: int | str
+    fields: dict[str, Any]
+
+
+class PreviewFixture(BaseModel):
+    """Validated client-provided fixture committed into a project revision."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    fixture_id: str = Field(alias="fixtureId", min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    expected_revision: str = Field(alias="expectedRevision")
+    source: FixtureSource
+    columns: tuple[FixtureColumn, ...] = Field(min_length=1)
+    records: tuple[FixtureRecord, ...]
+    selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
+    mappings: dict[str, str] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
+    access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
+
+    @field_validator("expected_revision")
+    @classmethod
+    def _expected_revision(cls, value: str) -> str:
+        return validate_revision(value)
+
+
+class GristFixtureRequest(BaseModel):
+    """Request to derive a fixture from policy-checked Grist reads."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    project_id: str = Field(alias="projectId")
+    expected_revision: str = Field(alias="expectedRevision")
+    fixture_id: str = Field(alias="fixtureId", min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    doc_id: str = Field(alias="docId", min_length=1)
+    table_id: str = Field(alias="tableId", min_length=1)
+    columns: tuple[str, ...] = Field(min_length=1)
+    selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
+    mappings: dict[str, str] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
+    access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
+    include_attachment_metadata: bool = Field(default=False, alias="includeAttachmentMetadata")
+    team_id: str = Field(default="", alias="teamId")
+
+    @field_validator("project_id")
+    @classmethod
+    def _request_project_id(cls, value: str) -> str:
+        return validate_project_id(value)
+
+    @field_validator("expected_revision")
+    @classmethod
+    def _request_revision(cls, value: str) -> str:
+        return validate_revision(value)
+
+    @field_validator("columns")
+    @classmethod
+    def _unique_columns(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not value for value in values) or len(values) != len(set(values)):
+            raise ValueError("columns must be non-empty and unique")
+        return values
+
+
+class FixtureSummary(BaseModel):
+    """Value-free summary of a committed fixture and resulting project revision."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    fixture_id: str
+    revision: str
+    digest: str
+    schema_version: int
+    row_count: int
+    column_count: int
+    source_doc_id: str
+    source_table_id: str
+
+    @field_validator("revision")
+    @classmethod
+    def _summary_revision(cls, value: str) -> str:
+        return validate_revision(value)
