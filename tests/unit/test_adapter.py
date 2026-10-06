@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -27,8 +27,8 @@ class RecordingAudit(AuditSink):
 
 class FakeApi:
     created = 0
-    configs: list[dict[str, str]] = []
-    getattr_names: list[str] = []
+    configs: ClassVar[list[dict[str, str]]] = []
+    getattr_names: ClassVar[list[str]] = []
 
     def __init__(self, config: dict[str, str]) -> None:
         type(self).created += 1
