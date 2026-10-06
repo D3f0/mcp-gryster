@@ -455,7 +455,11 @@ def _try_advisory_lock(descriptor: int) -> bool:
             os.fsync(descriptor)
         os.lseek(descriptor, 0, os.SEEK_SET)
         try:
-            msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+            msvcrt.locking(  # type: ignore[attr-defined]
+                descriptor,
+                msvcrt.LK_NBLCK,  # type: ignore[attr-defined]
+                1,
+            )
         except OSError:
             return False
         return True
@@ -474,7 +478,11 @@ def _release_advisory_lock(descriptor: int) -> None:
         import msvcrt
 
         os.lseek(descriptor, 0, os.SEEK_SET)
-        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+        msvcrt.locking(  # type: ignore[attr-defined]
+            descriptor,
+            msvcrt.LK_UNLCK,  # type: ignore[attr-defined]
+            1,
+        )
         return
 
     import fcntl
