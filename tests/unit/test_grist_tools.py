@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
+from typing import Any, ClassVar
 
 import pytest
 from fastmcp import Client, FastMCP
 
 from mcp_gryster.grist.models import GristCallResult
 from mcp_gryster.grist.tools import register_grist_tools
+from mcp_gryster.artifacts import ArtifactStore
+from mcp_gryster.audit import AuditEvent, AuditSink
+from mcp_gryster.config import DomainAccess, DomainPolicy, Settings
+from mcp_gryster.grist.adapter import GristAdapter
+from mcp_gryster.grist.models import MethodSpec, ParameterSpec
+from mcp_gryster.grist.policy import Policy
+from mcp_gryster.grist.registry import MethodRegistry
 
 
 class RecordingAdapter:
@@ -17,6 +25,10 @@ class RecordingAdapter:
         self.calls.append((method, arguments))
         return GristCallResult(status_code=200, data={"method": method, "arguments": arguments})
 
+    async def call_typed(self, route: str, arguments: dict[str, Any]) -> GristCallResult:
+        assert route == "documents.list"
+        return await self.call("see_workspace", arguments)
+
 
 @pytest.fixture
 def server_and_adapter() -> tuple[FastMCP, RecordingAdapter]:
@@ -24,6 +36,56 @@ def server_and_adapter() -> tuple[FastMCP, RecordingAdapter]:
     adapter = RecordingAdapter()
     register_grist_tools(server, adapter)  # type: ignore[arg-type]
     return server, adapter
+
+
+class RecordingAudit(AuditSink):
+    def __init__(self) -> None:
+        self.events: list[AuditEvent] = []
+
+    def emit(self, event: AuditEvent) -> None:
+        self.events.append(event)
+
+
+class WorkspaceApi:
+    configs: ClassVar[list[dict[str, str]]] = []
+
+    def __init__(self, config: dict[str, str]) -> None:
+        type(self).configs.append(config)
+
+    def see_workspace(self, ws_id: int = 0) -> tuple[int, object]:
+        return 200, {
+            "id": ws_id,
+            "name": "Private workspace metadata",
+            "docs": [{"id": "doc-1", "name": "Allowed document"}],
+        }
+
+
+def documents_server(
+    tmp_path: Path, *, documents: DomainAccess, workspaces: DomainAccess
+) -> FastMCP:
+    method = MethodSpec(
+        name="see_workspace",
+        domain="workspaces",
+        effect="read",
+        parameters={"ws_id": ParameterSpec(required=False, default=0)},
+        result_kind="json",
+    )
+    registry = MethodRegistry.model_construct(pygrister_version="0.10.0", methods=(method,))
+    settings = Settings(
+        workspace_root=tmp_path,
+        policy=DomainPolicy(documents=documents, workspaces=workspaces),
+    )
+    adapter = GristAdapter(
+        registry,
+        Policy(settings.policy),
+        ArtifactStore(tmp_path / "artifacts"),
+        settings,
+        RecordingAudit(),
+        api_factory=WorkspaceApi,
+    )
+    server = FastMCP("test", strict_input_validation=True)
+    register_grist_tools(server, adapter)
+    return server
 
 
 @pytest.mark.asyncio
@@ -137,14 +199,37 @@ async def test_list_filters_and_sql_arguments_are_preserved(
 
 
 @pytest.mark.asyncio
-async def test_documents_list_maps_to_workspace_detail(
-    server_and_adapter: tuple[FastMCP, RecordingAdapter],
+async def test_documents_list_denies_when_documents_are_disabled(
+    tmp_path: Path,
 ) -> None:
-    server, adapter = server_and_adapter
-    async with Client(server) as client:
-        await client.call_tool("grist.documents.list", {"workspace_id": 42})
+    server = documents_server(
+        tmp_path, documents=DomainAccess.NONE, workspaces=DomainAccess.READ
+    )
 
-    assert adapter.calls == [("see_workspace", {"ws_id": 42})]
+    async with Client(server) as client:
+        result = await client.call_tool(
+            "grist.documents.list", {"workspace_id": 42}, raise_on_error=False
+        )
+
+    assert result.is_error
+
+
+@pytest.mark.asyncio
+async def test_documents_list_uses_document_policy_and_returns_only_documents(
+    tmp_path: Path,
+) -> None:
+    server = documents_server(
+        tmp_path, documents=DomainAccess.READ, workspaces=DomainAccess.NONE
+    )
+
+    async with Client(server) as client:
+        result = await client.call_tool("grist.documents.list", {"workspace_id": 42})
+
+    assert not result.is_error
+    assert result.structured_content == {
+        "status_code": 200,
+        "data": [{"id": "doc-1", "name": "Allowed document"}],
+    }
 
 
 @pytest.mark.asyncio

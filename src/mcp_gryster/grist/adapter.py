@@ -72,15 +72,48 @@ class GristAdapter:
         self, method: str, arguments: dict[str, JsonValue]
     ) -> GristCallResult:
         """Authorize, validate, execute, and normalize one registered operation."""
+        return await self._call(method, arguments)
+
+    async def call_typed(
+        self,
+        route: Literal["documents.list"],
+        arguments: dict[str, JsonValue],
+    ) -> GristCallResult:
+        """Dispatch a fixed typed route under its public domain policy."""
+        if route != "documents.list":
+            raise McpGrysterError(
+                "METHOD_NOT_SUPPORTED", "The requested Grist method is not supported"
+            )
+        result = await self._call(
+            "see_workspace",
+            arguments,
+            authorization_domain="documents",
+            audit_tool="grist.documents.list",
+        )
+        workspace = result.data
+        documents: JsonValue = workspace.get("docs", []) if isinstance(workspace, dict) else []
+        return GristCallResult(status_code=result.status_code, data=documents)
+
+    async def _call(
+        self,
+        method: str,
+        arguments: dict[str, JsonValue],
+        *,
+        authorization_domain: Literal["documents"] | None = None,
+        audit_tool: str | None = None,
+    ) -> GristCallResult:
         started = monotonic()
         spec = self._registry.inspect(method)
-        audit_domain = spec.domain if spec is not None else "unknown"
+        audit_domain = authorization_domain or (spec.domain if spec is not None else "unknown")
         audit_effect = spec.effect if spec is not None else "none"
         audit_status: Literal["success", "error", "denied"] = "error"
         correlation_id: str | None = None
         try:
             dispatch_spec = self._registry.get(method)
-            self._policy.authorize(dispatch_spec)
+            authorization_spec = dispatch_spec.model_copy(
+                update={"domain": authorization_domain}
+            ) if authorization_domain is not None else dispatch_spec
+            self._policy.authorize(authorization_spec)
             signature, annotations = self._call_contract(dispatch_spec)
             call_arguments = self._bind_arguments(
                 dispatch_spec, signature, annotations, arguments
@@ -103,7 +136,7 @@ class GristAdapter:
         finally:
             self._audit.emit(
                 AuditEvent(
-                    tool=f"grist.{method}",
+                    tool=audit_tool or f"grist.{method}",
                     domain=audit_domain,
                     effect=audit_effect,
                     status=audit_status,

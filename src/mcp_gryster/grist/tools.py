@@ -53,8 +53,8 @@ def _register_workspace_and_document_tools(mcp: FastMCP, adapter: GristAdapter) 
 
     @mcp.tool(name="grist.documents.list")
     async def list_documents(workspace_id: int = 0) -> GristCallResult:
-        """List documents by retrieving one workspace and its document collection."""
-        return await _call(adapter, "see_workspace", ws_id=workspace_id)
+        """List documents in one workspace under document-read policy."""
+        return await adapter.call_typed("documents.list", {"ws_id": workspace_id})
 
     @mcp.tool(name="grist.documents.get")
     async def get_document(doc_id: str = "", team_id: str = "") -> GristCallResult:
