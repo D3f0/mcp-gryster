@@ -8,6 +8,7 @@ Complete.
 
 - `f8ac903` — `feat: create safe widget preview fixtures`
 - `e11035b` — `fix: sanitize client fixture records`
+- `902332c` — `fix: keep preview fixture schema canonical`
 
 ## Implementation
 
