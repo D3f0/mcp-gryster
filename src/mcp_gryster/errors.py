@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -70,19 +70,19 @@ class McpGrysterError(Exception):
 
     @property
     def code(self) -> ErrorCode:
-        return cast(ErrorCode, self._data.code)
+        return self._data.code
 
     @property
     def message(self) -> str:
-        return cast(str, self._data.message)
+        return self._data.message
 
     @property
     def details(self) -> dict[str, Any] | None:
-        return cast(dict[str, Any] | None, self._data.details)
+        return self._data.details
 
     @property
     def correlation_id(self) -> str | None:
-        return cast(str | None, self._data.correlation_id)
+        return self._data.correlation_id
 
     def __setattr__(self, name: str, value: object) -> None:
         if name in {"code", "message", "details", "correlation_id"}:
@@ -92,11 +92,11 @@ class McpGrysterError(Exception):
 
     def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         """Return the structured public payload."""
-        return cast(dict[str, Any], self._data.model_dump(**kwargs))
+        return self._data.model_dump(**kwargs)
 
     def model_dump_json(self, **kwargs: Any) -> str:
         """Serialize the structured public payload as JSON."""
-        return cast(str, self._data.model_dump_json(**kwargs))
+        return self._data.model_dump_json(**kwargs)
 
     def __str__(self) -> str:
         return self.message

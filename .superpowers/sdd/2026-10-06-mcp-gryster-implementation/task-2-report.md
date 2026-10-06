@@ -70,3 +70,9 @@ uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/
 - Added explicit typed casts at the Pydantic delegation boundary because the installed Pydantic typing exposes these generated attributes and serializer returns as `Any` under strict checking.
 - Public property, serialization, and throwable exception behavior is unchanged.
 - No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands remain listed above.
+
+## Controller redundant-cast fix
+
+- Removed the six casts that strict mypy identified as redundant after `_data` received its explicit `_ErrorData` annotation, and removed the unused `cast` import.
+- Throwable and structured public error behavior is unchanged.
+- No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands remain listed above.
