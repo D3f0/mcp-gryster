@@ -279,12 +279,15 @@ def _javascript_issues(
             if access != metadata.access_level:
                 issues.append(_issue("READY_ACCESS_MISMATCH", "error", "Grist access differs from metadata", "access"))
             ready_by_name = {column.name: column for column in columns}
-            if any(column.name not in ready_by_name for column in metadata.columns):
+            missing = any(column.name not in ready_by_name for column in metadata.columns)
+            if missing:
                 issues.append(_issue("DECLARED_COLUMN_MISSING", "error", "Metadata column is absent from initialization", "column"))
-            if set(ready_by_name) != {column.name for column in metadata.columns} or any(
-                not _column_contract_matches(column, ready_by_name[column.name])
-                for column in metadata.columns
-                if column.name in ready_by_name
+            if not missing and (
+                set(ready_by_name) != {column.name for column in metadata.columns}
+                or any(
+                    not _column_contract_matches(column, ready_by_name[column.name])
+                    for column in metadata.columns
+                )
             ):
                 issues.append(_issue("READY_COLUMN_MISMATCH", "error", "Grist column contract differs from metadata", "column"))
     if any(member not in _ALLOWED_GRIST_MEMBERS for member in facts.grist_members):

@@ -244,7 +244,7 @@ async def test_attachment_columns_require_opt_in_and_store_only_identifiers(tmp_
     manager = FixtureManager(store, FakeAdapter(results), settings)
 
     with pytest.raises(McpGrysterError) as caught:
-        await manager.create_from_grist(_grist_request(initial, columns=["Photo"]))
+        await manager.create_from_grist(_grist_request(initial, columns=["Photo"], mappings={}))
     assert caught.value.code == "INVALID_ARGUMENT"
     assert store.read("safe-widget").revision == initial
 
@@ -252,6 +252,7 @@ async def test_attachment_columns_require_opt_in_and_store_only_identifiers(tmp_
         _grist_request(
             initial,
             columns=["Photo"],
+            mappings={},
             includeAttachmentMetadata=True,
         )
     )

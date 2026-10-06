@@ -43,3 +43,11 @@ Executed successfully:
 - Mapping multiplicity now follows mapping value shape rather than Grist column type.
 - Added focused regression coverage for every review finding before implementation.
 - Per controller instruction, no checks were executed in this review round.
+
+## Controller Fix Round
+
+- Suppressed redundant `READY_COLUMN_MISMATCH` when a declared column is already reported missing.
+- Canonicalized tuple-backed mapping values to JSON lists before recursive fixture validation.
+- Corrected attachment-only test setup to use an empty mapping while preserving strict mapping enforcement.
+- Added focused regression coverage before implementation.
+- Per controller instruction, no checks were executed in this fix round.

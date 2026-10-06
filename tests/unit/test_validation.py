@@ -523,3 +523,14 @@ def test_ready_extra_column_name_is_contract_mismatch(store: ProjectStore) -> No
     )
     store.apply_files("safe-widget", revision, {"src/app.js": javascript}, [])
     assert "READY_COLUMN_MISMATCH" in _codes(WidgetValidator(store).validate("safe-widget"))
+
+
+def test_absent_ready_column_does_not_duplicate_contract_mismatch(store: ProjectStore) -> None:
+    revision = _project(store)
+    store.apply_files(
+        "safe-widget", revision,
+        {"src/app.js": b"grist.ready({requiredAccess: 'read table', columns: []});\n"}, [],
+    )
+    codes = _codes(WidgetValidator(store).validate("safe-widget"))
+    assert "DECLARED_COLUMN_MISSING" in codes
+    assert "READY_COLUMN_MISMATCH" not in codes

@@ -298,7 +298,11 @@ class FixtureManager:
                 raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
             for value in record.fields.values():
                 self._validate_json_value(value, depth=0)
-        self._validate_json_value(fixture.mappings, depth=0)
+        mappings = {
+            name: list(mapping) if isinstance(mapping, tuple) else mapping
+            for name, mapping in fixture.mappings.items()
+        }
+        self._validate_json_value(mappings, depth=0)
         self._validate_json_value(fixture.options, depth=0)
 
     def _commit(self, project_id: str, fixture: PreviewFixture) -> FixtureSummary:
