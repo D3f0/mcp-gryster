@@ -34,7 +34,7 @@ class DomainPolicy(BaseModel):
     organizations: DomainAccess = DomainAccess.NONE
     workspaces: DomainAccess = DomainAccess.NONE
     documents: DomainAccess = DomainAccess.NONE
-    schema: DomainAccess = DomainAccess.NONE
+    schema_access: DomainAccess = Field(default=DomainAccess.NONE, alias="schema")
     records: DomainAccess = DomainAccess.READ
     access: DomainAccess = DomainAccess.NONE
     attachments: DomainAccess = DomainAccess.NONE
@@ -65,7 +65,9 @@ _GRIST_KEYS = (
     "GRIST_SAFEMODE",
 )
 
-_POLICY_DOMAINS = frozenset(DomainPolicy.model_fields)
+_POLICY_DOMAINS = frozenset(
+    field.alias or name for name, field in DomainPolicy.model_fields.items()
+)
 
 
 class Settings(BaseModel):
@@ -138,12 +140,15 @@ class Settings(BaseModel):
         except (ValidationError, re.error) as exc:
             raise SettingsError(_settings_error_message(exc)) from exc
 
-        if settings.transport == "streamable-http" and not _is_loopback(settings.host):
-            if settings.http_auth_token is None:
-                raise SettingsError(
-                    "HTTP authentication is required when binding Streamable HTTP "
-                    "to a non-loopback host"
-                )
+        if (
+            settings.transport == "streamable-http"
+            and not _is_loopback(settings.host)
+            and settings.http_auth_token is None
+        ):
+            raise SettingsError(
+                "HTTP authentication is required when binding Streamable HTTP "
+                "to a non-loopback host"
+            )
 
         try:
             workspace.mkdir(parents=True, exist_ok=True)

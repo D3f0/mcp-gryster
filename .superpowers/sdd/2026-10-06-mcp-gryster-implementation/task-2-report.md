@@ -55,3 +55,11 @@ uv run pytest tests/unit/test_config.py tests/unit/test_errors_audit.py -v
 uv run ruff check src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
 uv run mypy src/mcp_gryster/config.py src/mcp_gryster/errors.py src/mcp_gryster/audit.py src/mcp_gryster/artifacts.py
 ```
+
+## Controller clean-output fix
+
+- Preserved the external policy JSON key `schema` using the internal `schema_access` field with a Pydantic alias, eliminating the Pydantic `BaseModel.schema` shadowing warning.
+- Updated exact policy-key derivation to use serialized aliases, so the accepted twelve-key contract remains unchanged.
+- Combined the nested external-HTTP/authentication guard to satisfy Ruff `SIM102` without changing behavior.
+- Declared `ErrorCode` with Python 3.12 type-alias syntax to satisfy Ruff `UP040`.
+- No checks were executed per controller instruction. The expected pytest, Ruff, and mypy commands are listed above.

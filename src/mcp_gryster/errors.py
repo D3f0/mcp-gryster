@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-ErrorCode: TypeAlias = Literal[
+type ErrorCode = Literal[
     "INVALID_ARGUMENT",
     "METHOD_NOT_SUPPORTED",
     "PERMISSION_DENIED",
