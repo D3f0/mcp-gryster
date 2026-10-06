@@ -2,6 +2,13 @@
   "use strict";
 
   const prefix = location.pathname.split("/widget/")[0];
+  const reporterOrigin = "__REPORT_ORIGIN__";
+  const statusNonce = "__STATUS_NONCE__";
+  const nativeFetch = window.fetch.bind(window);
+  const errorClasses = new Set([
+    "AggregateError", "Error", "EvalError", "RangeError", "ReferenceError",
+    "SyntaxError", "TypeError", "URIError",
+  ]);
   const state = {
     ready: false,
     fixture: null,
@@ -13,14 +20,22 @@
   let reportQueue = Promise.resolve();
 
   const report = (payload) => {
-    reportQueue = reportQueue.then(() => fetch(`${prefix}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    })).then(() => undefined).catch(() => undefined);
+    reportQueue = reportQueue.then(async () => {
+      const response = await nativeFetch(`${reporterOrigin}${prefix}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Mcp-Gryster-Status": statusNonce,
+        },
+        body: JSON.stringify(payload),
+        keepalive: true,
+      });
+      if (!response.ok) throw new Error("Preview status rejected");
+    });
     return reportQueue;
   };
+
+  const errorClass = (value) => errorClasses.has(value) ? value : "Error";
 
   const locationOf = (source, line, column) => {
     let name = "unknown";
@@ -39,7 +54,7 @@
     report({
       kind: "uncaught",
       category: "runtime",
-      errorClass: event.error?.name || "Error",
+      errorClass: errorClass(event.error?.name),
       location: locationOf(event.filename, event.lineno, event.colno),
     }).finally(() => {
       document.body.dataset.mcpGrysterError = "runtime";
@@ -52,7 +67,7 @@
     report({
       kind: "uncaught",
       category: "promise",
-      errorClass: event.reason?.name || "Error",
+      errorClass: errorClass(event.reason?.name),
       location: "unknown:0:0",
     }).finally(() => {
       document.body.dataset.mcpGrysterError = "promise";
@@ -130,7 +145,7 @@
     }
     await report({ kind: "event", method: "selectedRecord" });
     for (const callback of state.callbacks.onRecord) {
-      await callback(mappedRecord(selected), state.fixture.mappings);
+      await callback(selected ? structuredClone(selected) : null, state.fixture.mappings);
     }
     await reportQueue;
     if (!state.failed) {
@@ -153,7 +168,9 @@
       state.ready = true;
       await report({ kind: "ready" });
       try {
-        const response = await fetch(`${prefix}/fixture`, { cache: "no-store" });
+        const response = await nativeFetch(`${reporterOrigin}${prefix}/fixture`, {
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("Fixture unavailable");
         state.fixture = await response.json();
         state.records = structuredClone(state.fixture.records);
@@ -165,7 +182,7 @@
           await report({
             kind: "uncaught",
             category: "promise",
-            errorClass: error?.name || "Error",
+            errorClass: errorClass(error?.name),
             location: "grist-bridge.js:0:0",
           });
           document.body.dataset.mcpGrysterError = "promise";

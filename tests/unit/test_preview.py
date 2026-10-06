@@ -113,6 +113,7 @@ async def test_fixture_preview_is_capability_scoped_and_stops_cleanly(tmp_path: 
     parsed = urlsplit(session.url)
     token = parsed.path.split("/")[2]
     origin = f"{parsed.scheme}://{parsed.netloc}"
+    widget_origin = f"http://localhost:{parsed.port}"
 
     assert parsed.hostname == "127.0.0.1"
     assert parsed.port not in {None, 0}
@@ -131,29 +132,29 @@ async def test_fixture_preview_is_capability_scoped_and_stops_cleanly(tmp_path: 
     assert headers["x-frame-options"] == "SAMEORIGIN"
     assert headers["content-type"].startswith("text/html")
 
-    widget_url = f"{origin}/t/{token}/widget/index.html"
+    widget_url = f"{widget_origin}/t/{token}/widget/index.html"
     status, widget, _ = await asyncio.to_thread(_request, widget_url)
     assert status == 200
     assert b"grist-bridge.js" in widget
     assert b"<output id='rendered'>" in widget
 
     status, _, headers = await asyncio.to_thread(
-        _request, f"{origin}/t/{token}/widget/style.css"
+        _request, f"{widget_origin}/t/{token}/widget/style.css"
     )
     assert status == 200
     assert headers["content-type"].startswith("text/css")
 
     denied_urls = (
         f"{origin}/",
-        f"{origin}/t/{token}/widget/",
-        f"{origin}/t/{token}/widget/{quote('../widget.json', safe='')}",
-        f"{origin}/t/{token}/widget/{quote('../../other-widget/src/index.html', safe='')}",
+        f"{widget_origin}/t/{token}/widget/",
+        f"{widget_origin}/t/{token}/widget/{quote('../widget.json', safe='')}",
+        f"{widget_origin}/t/{token}/widget/{quote('../../other-widget/src/index.html', safe='')}",
     )
     for denied_url in denied_urls:
         status, _, _ = await asyncio.to_thread(_request, denied_url)
         assert status == 404
     status, _, _ = await asyncio.to_thread(
-        _request, f"{origin}/t/{token}/widget/blob.unknown"
+        _request, f"{widget_origin}/t/{token}/widget/blob.unknown"
     )
     assert status == 415
 
@@ -169,23 +170,22 @@ async def test_fixture_preview_is_capability_scoped_and_stops_cleanly(tmp_path: 
         headers={"Content-Type": "application/json", "Origin": "https://attacker.example"},
     )
     assert status == 403
-    status, _, _ = await asyncio.to_thread(
-        _request,
-        f"{origin}/t/{token}/status",
-        method="POST",
-        body=b'{"kind":"ready"}',
-        headers={"Content-Type": "application/json", "Origin": origin},
-    )
-    assert status == 204
-
-    status, _, _ = await asyncio.to_thread(
-        _request,
-        f"{origin}/t/{token}/status",
-        method="POST",
-        body=b'{"kind":"handshake"}',
-        headers={"Content-Type": "application/json", "Origin": origin},
-    )
-    assert status == 409
+    for forged in (
+        {"kind": "ready"},
+        {"kind": "event", "method": "options"},
+        {"kind": "event", "method": "records"},
+        {"kind": "event", "method": "selectedRecord"},
+        {"kind": "handshake"},
+    ):
+        status, _, _ = await asyncio.to_thread(
+            _request,
+            f"{origin}/t/{token}/status",
+            method="POST",
+            body=json.dumps(forged).encode(),
+            headers={"Content-Type": "application/json", "Origin": widget_origin},
+        )
+        assert status == 403
+    assert session.status == ()
     assert not evidence.has_success("preview-widget", session.revision, "sample")
 
     stopped = await manager.stop(session.session_id)
@@ -224,6 +224,36 @@ async def test_live_preview_serves_only_unmodified_authored_static(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_authored_widget_cannot_forge_preview_status_or_evidence(tmp_path: Path) -> None:
+    script = b"""
+const bridgeUrl = document.querySelector('script[src*=grist-bridge]').src;
+fetch(bridgeUrl.replace('/grist-bridge.js', '/status'), {
+  method: 'POST', mode: 'no-cors',
+  headers: {'Content-Type': 'text/plain'},
+  body: JSON.stringify({kind: 'handshake'}),
+}).then(() => { document.body.dataset.forgeStatus = 'sent'; });
+"""
+    store = _store(tmp_path)
+    revision = _project(store, script=script)
+    evidence = PreviewEvidenceStore()
+    manager = PreviewManager(store, evidence)
+    session = await manager.start("preview-widget", "fixture", "sample")
+
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(session.url)
+            frame = page.frame_locator("#widget-frame")
+            await expect(frame.locator("body")).to_have_attribute("data-forge-status", "sent")
+            await browser.close()
+    finally:
+        await manager.stop_all()
+
+    assert session.status == ()
+    assert not evidence.has_success("preview-widget", revision, "sample")
+
+@pytest.mark.asyncio
 async def test_browser_bridge_dispatches_in_order_renders_selection_and_records_evidence(
     tmp_path: Path,
 ) -> None:
@@ -231,7 +261,10 @@ async def test_browser_bridge_dispatches_in_order_renders_selection_and_records_
 const rendered = document.querySelector('#rendered');
 grist.onOptions(options => { rendered.dataset.theme = options.theme; });
 grist.onRecords(records => { rendered.dataset.count = String(records.length); });
-grist.onRecord(record => { rendered.textContent = record.displayName; });
+grist.onRecord(record => {
+  rendered.dataset.rawName = record.fields.Name;
+  rendered.textContent = grist.mapColumnNames(record).displayName;
+});
 grist.ready();
 """
     store = _store(tmp_path)
@@ -249,6 +282,7 @@ grist.ready();
             rendered = frame.locator("#rendered")
             await rendered.wait_for(state="visible")
             await expect(rendered).to_have_text("Selected fixture value")
+            await expect(rendered).to_have_attribute("data-raw-name", "Selected fixture value")
             await expect(frame.locator("body")).to_have_attribute(
                 "data-mcp-gryster-handshake", "complete"
             )
@@ -277,6 +311,40 @@ grist.ready();
         None,
     ]
     assert evidence.has_success("preview-widget", revision, "sample")
+
+@pytest.mark.asyncio
+async def test_late_unsupported_status_revokes_successful_preview_evidence(tmp_path: Path) -> None:
+    script = b"""
+grist.onRecord(record => {
+  document.querySelector('#rendered').textContent = record.fields.Name;
+  setTimeout(() => { try { grist.notARealMember(); } catch (_) {} }, 100);
+});
+grist.ready();
+"""
+    store = _store(tmp_path)
+    revision = _project(store, script=script)
+    evidence = PreviewEvidenceStore()
+    manager = PreviewManager(store, evidence)
+    session = await manager.start("preview-widget", "fixture", "sample")
+
+    try:
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(session.url)
+            frame = page.frame_locator("#widget-frame")
+            await expect(frame.locator("body")).to_have_attribute(
+                "data-mcp-gryster-handshake", "complete"
+            )
+            assert evidence.has_success("preview-widget", revision, "sample")
+            await expect(frame.locator("body")).to_have_attribute(
+                "data-mcp-gryster-unsupported", "notARealMember"
+            )
+            await browser.close()
+    finally:
+        await manager.stop_all()
+
+    assert not evidence.has_success("preview-widget", revision, "sample")
 
 
 @pytest.mark.asyncio
@@ -327,7 +395,8 @@ async def test_runtime_failure_status_omits_authored_message_and_never_records_s
 ) -> None:
     secret = "Selected fixture value must never appear in status"
     store = _store(tmp_path)
-    revision = _project(store, script=f'throw new TypeError("{secret}");\n'.encode())
+    script = f'const error = new Error("{secret}"); error.name = "{secret}"; throw error;\n'
+    revision = _project(store, script=script.encode())
     evidence = PreviewEvidenceStore()
     manager = PreviewManager(store, evidence)
     session = await manager.start("preview-widget", "fixture", "sample")
@@ -346,7 +415,7 @@ async def test_runtime_failure_status_omits_authored_message_and_never_records_s
         await manager.stop_all()
 
     runtime = next(status for status in session.status if status.kind == "uncaught")
-    assert runtime.error_class == "TypeError"
+    assert runtime.error_class == "Error"
     assert runtime.category == "runtime"
     assert runtime.location is not None
     assert runtime.location.startswith("app.js:1:")

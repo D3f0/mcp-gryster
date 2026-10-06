@@ -126,6 +126,17 @@ def test_packageable_requires_successful_preview_for_exact_revision(store: Proje
     assert report.valid is True
     assert report.packageable is False
 
+def test_discarded_preview_evidence_revokes_packageability(store: ProjectStore) -> None:
+    revision = _project(store)
+    evidence = PreviewEvidenceStore()
+    evidence.record_success("safe-widget", revision, None)
+    validator = WidgetValidator(store, evidence)
+    assert validator.validate("safe-widget").packageable is True
+
+    evidence.discard("safe-widget", revision, None)
+
+    assert validator.validate("safe-widget").packageable is False
+
 
 def test_invalid_metadata_has_one_stable_code_without_authored_evidence(store: ProjectStore) -> None:
     _project(store)

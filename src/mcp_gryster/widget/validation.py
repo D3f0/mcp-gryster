@@ -76,6 +76,10 @@ class PreviewEvidenceStore:
     def record_success(self, project_id: str, revision: str, fixture_id: str | None) -> None:
         self._successes.add((project_id, revision, fixture_id))
 
+    def discard(self, project_id: str, revision: str, fixture_id: str | None) -> None:
+        """Revoke successful preview evidence for an exact project revision and fixture."""
+        self._successes.discard((project_id, revision, fixture_id))
+
     def has_success(self, project_id: str, revision: str, fixture_id: str | None) -> bool:
         return (project_id, revision, fixture_id) in self._successes
 

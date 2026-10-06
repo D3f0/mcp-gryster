@@ -58,3 +58,13 @@ Per assignment, the controller owns these commands and browser installation; the
 - Sorted `StopPreviewResult` before `StoredPreviewFixture` in `widget.__all__` to satisfy RUF022.
 - Controller reported 5/5 focused preview tests and 187/187 unit tests passing with pristine output before this exact mechanical reorder.
 - Per controller instruction, no checks were executed for this mechanical fix.
+
+## Review Fix Round 1
+
+- `onRecord` now receives cloned raw `{id, fields}` records; `mapColumnNames` is the explicit mapping operation.
+- Added exact evidence revocation, including a packageability regression test and late unsupported-status browser coverage.
+- Isolated authored widgets on `localhost` from the `127.0.0.1` reporter origin, with strict Host/Origin allowlists, constrained CORS, per-session status nonces, and captured native fetch.
+- Added authored-code forgery coverage proving a direct fake handshake cannot create preview evidence.
+- Normalized arbitrary browser `Error.name` values to a fixed allowlist before reporting.
+- CSP remains strict without `unsafe-eval`; cross-origin bridge, connect, and frame permissions are session-origin-specific.
+- Per controller instruction, no checks were executed in this review fix round.

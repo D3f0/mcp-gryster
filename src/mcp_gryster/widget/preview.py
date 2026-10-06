@@ -46,7 +46,6 @@ _ALLOWED_MIME = MappingProxyType(
     }
 )
 _SAFE_METHOD = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$.-]{0,79}$")
-_SAFE_ERROR_CLASS = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]{0,79}$")
 _SAFE_LOCATION = re.compile(r"^[A-Za-z0-9._-]{1,100}:[0-9]{1,7}:[0-9]{1,7}$")
 _HEAD_ELEMENT = re.compile(br"<head(?:\s[^>]*)?>", re.IGNORECASE)
 
@@ -93,6 +92,8 @@ class _Runtime:
     session: PreviewSession
     token: str
     origin: str
+    widget_origin: str
+    status_nonce: str
     mode: Literal["fixture", "live"]
     source_root: Path
     entrypoint: str
@@ -138,6 +139,7 @@ class PreviewManager:
 
         session_id = secrets.token_urlsafe(24)
         token = secrets.token_urlsafe(32)
+        status_nonce = secrets.token_urlsafe(32)
         statuses: list[PreviewStatus] = []
         session = PreviewSession(
             session_id=session_id,
@@ -164,6 +166,7 @@ class PreviewManager:
             await self._wait_started(server, task)
             port = self._server_port(server)
             origin = f"http://127.0.0.1:{port}"
+            widget_origin = f"http://localhost:{port}"
             entry_url = (
                 f"{origin}/t/{token}/harness"
                 if mode == "fixture"
@@ -182,6 +185,8 @@ class PreviewManager:
                 session=session,
                 token=token,
                 origin=origin,
+                widget_origin=widget_origin,
+                status_nonce=status_nonce,
                 mode=mode,
                 source_root=source_root,
                 entrypoint=entrypoint,
@@ -291,28 +296,37 @@ class PreviewManager:
             runtime = holder.get("runtime")
             if runtime is None:
                 return Response(status_code=503)
-            if not _host_allowed(request, runtime):
+            host_kind = _host_kind(request, runtime)
+            if host_kind is None:
                 return Response(status_code=403)
             if request.path_params["token"] != runtime.token:
                 return Response(status_code=404)
             route = request.path_params["route"]
             if runtime.mode == "live":
-                if route.startswith("widget/"):
+                if host_kind == "harness" and route.startswith("widget/"):
                     return _asset_response(runtime, route.removeprefix("widget/"), inject_bridge=False)
                 return Response(status_code=404)
-            if route == "harness" and request.method == "GET":
-                return _harness_response(runtime)
-            if route == "grist-bridge.js" and request.method == "GET":
-                return _static_response("grist-bridge.js", "text/javascript; charset=utf-8")
-            if route == "fixture" and request.method == "GET":
-                return _fixture_response(runtime)
-            if route == "status" and request.method == "POST":
-                return await _status_response(request, runtime)
+            if host_kind == "harness":
+                if route == "harness" and request.method == "GET":
+                    return _harness_response(runtime)
+                if route == "grist-bridge.js" and request.method == "GET":
+                    return _bridge_response(runtime)
+                if route == "fixture" and request.method == "GET":
+                    if not _origin_allowed(request, runtime):
+                        return Response(status_code=403)
+                    return _fixture_response(runtime)
+                if route in {"fixture", "status"} and request.method == "OPTIONS":
+                    return _cors_preflight_response(request, runtime)
+                if route == "status" and request.method == "POST":
+                    return await _status_response(request, runtime)
+                return Response(status_code=404)
             if route.startswith("widget/") and request.method == "GET":
                 return _asset_response(runtime, route.removeprefix("widget/"), inject_bridge=True)
             return Response(status_code=404)
 
-        return Starlette(routes=[Route("/t/{token}/{route:path}", dispatch, methods=["GET", "POST"])])
+        return Starlette(
+            routes=[Route("/t/{token}/{route:path}", dispatch, methods=["GET", "POST", "OPTIONS"])]
+        )
 
 
 def _security_headers() -> dict[str, str]:
@@ -325,9 +339,13 @@ def _security_headers() -> dict[str, str]:
     }
 
 
-def _host_allowed(request: Request, runtime: _Runtime) -> bool:
-    expected = urlsplit_netloc(runtime.origin)
-    return request.headers.get("host", "") == expected
+def _host_kind(request: Request, runtime: _Runtime) -> Literal["harness", "widget"] | None:
+    host = request.headers.get("host", "")
+    if host == urlsplit_netloc(runtime.origin):
+        return "harness"
+    if host == urlsplit_netloc(runtime.widget_origin):
+        return "widget"
+    return None
 
 
 def urlsplit_netloc(url: str) -> str:
@@ -335,8 +353,21 @@ def urlsplit_netloc(url: str) -> str:
 
 
 def _origin_allowed(request: Request, runtime: _Runtime) -> bool:
-    origin = request.headers.get("origin")
-    return origin == runtime.origin
+    return request.headers.get("origin") == runtime.widget_origin
+
+def _cors_headers(runtime: _Runtime) -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": runtime.widget_origin,
+        "Access-Control-Allow-Headers": "Content-Type, X-Mcp-Gryster-Status",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Vary": "Origin",
+    }
+
+
+def _cors_preflight_response(request: Request, runtime: _Runtime) -> Response:
+    if not _origin_allowed(request, runtime):
+        return Response(status_code=403)
+    return Response(status_code=204, headers={**_security_headers(), **_cors_headers(runtime)})
 
 
 def _harness_response(runtime: _Runtime) -> Response:
@@ -345,18 +376,33 @@ def _harness_response(runtime: _Runtime) -> Response:
         .joinpath("harness.html")
         .read_text(encoding="utf-8")
     )
-    widget_url = f"/t/{runtime.token}/widget/{quote(runtime.entrypoint, safe='/')}"
-    body = template.replace("__WIDGET_URL__", widget_url)
-    return HTMLResponse(body, headers=_security_headers())
-
-
-def _static_response(name: str, content_type: str) -> Response:
-    content = files("mcp_gryster.widget.static").joinpath(name).read_bytes()
-    return Response(
-        content,
-        media_type=None,
-        headers={**_security_headers(), "Content-Type": content_type},
+    widget_url = (
+        f"{runtime.widget_origin}/t/{runtime.token}/widget/{quote(runtime.entrypoint, safe='/')}"
     )
+    body = template.replace("__WIDGET_URL__", widget_url)
+    headers = _security_headers()
+    headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(
+        "frame-src 'self'", f"frame-src {runtime.widget_origin}"
+    )
+    return HTMLResponse(body, headers=headers)
+
+
+def _bridge_response(runtime: _Runtime) -> Response:
+    template = (
+        files("mcp_gryster.widget.static")
+        .joinpath("grist-bridge.js")
+        .read_text(encoding="utf-8")
+    )
+    content = (
+        template.replace("__REPORT_ORIGIN__", runtime.origin)
+        .replace("__STATUS_NONCE__", runtime.status_nonce)
+        .encode()
+    )
+    headers = {
+        **_security_headers(),
+        "Content-Type": "text/javascript; charset=utf-8",
+    }
+    return Response(content, media_type=None, headers=headers)
 
 
 def _fixture_response(runtime: _Runtime) -> Response:
@@ -364,7 +410,7 @@ def _fixture_response(runtime: _Runtime) -> Response:
         return Response(status_code=404)
     body = runtime.fixture.model_dump(mode="json", by_alias=True)
     body["emulatorVersion"] = _EMULATOR_VERSION
-    return JSONResponse(body, headers=_security_headers())
+    return JSONResponse(body, headers={**_security_headers(), **_cors_headers(runtime)})
 
 
 def _asset_response(runtime: _Runtime, requested: str, *, inject_bridge: bool) -> Response:
@@ -384,18 +430,28 @@ def _asset_response(runtime: _Runtime, requested: str, *, inject_bridge: bool) -
     media_type = _ALLOWED_MIME.get(path.suffix.lower())
     if media_type is None:
         return Response(status_code=415)
+    headers = _security_headers()
     if inject_bridge and path.suffix.lower() == ".html":
-        bridge = f'<script src="/t/{runtime.token}/grist-bridge.js"></script>'.encode()
+        bridge_url = f"{runtime.origin}/t/{runtime.token}/grist-bridge.js"
+        bridge = f'<script src="{bridge_url}"></script>'.encode()
         match = _HEAD_ELEMENT.search(content)
         if match is None:
             content = bridge + content
         else:
             content = content[: match.end()] + bridge + content[match.end() :]
-    return Response(content, media_type=None, headers={**_security_headers(), "Content-Type": media_type})
+        headers.pop("X-Frame-Options")
+        headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(
+            "script-src 'self'", f"script-src 'self' {runtime.origin}"
+        ).replace(
+            "connect-src 'self'", f"connect-src 'self' {runtime.origin}"
+        ) + f"; frame-ancestors {runtime.origin}"
+    return Response(content, media_type=None, headers={**headers, "Content-Type": media_type})
 
 
 async def _status_response(request: Request, runtime: _Runtime) -> Response:
     if not _origin_allowed(request, runtime):
+        return Response(status_code=403)
+    if request.headers.get("x-mcp-gryster-status") != runtime.status_nonce:
         return Response(status_code=403)
     content_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
     if content_type != "application/json":
@@ -418,9 +474,17 @@ async def _status_response(request: Request, runtime: _Runtime) -> Response:
         return Response(status_code=400)
     if status.kind == "handshake" and not _handshake_allowed(runtime):
         return Response(status_code=409)
+    if runtime.successful and status.kind not in {"unsupported", "uncaught"}:
+        return Response(status_code=409)
     runtime.session._statuses.append(status)
     if status.kind in {"unsupported", "uncaught"}:
         runtime.failed = True
+        runtime.successful = False
+        runtime.evidence.discard(
+            runtime.session.project_id,
+            runtime.session.revision,
+            runtime.session.fixture_id,
+        )
     if status.kind == "handshake":
         runtime.successful = True
         runtime.evidence.record_success(
@@ -428,7 +492,7 @@ async def _status_response(request: Request, runtime: _Runtime) -> Response:
             runtime.session.revision,
             runtime.session.fixture_id,
         )
-    return Response(status_code=204)
+    return Response(status_code=204, headers=_cors_headers(runtime))
 
 def _handshake_allowed(runtime: _Runtime) -> bool:
     if runtime.failed or runtime.successful:
@@ -486,7 +550,17 @@ def _sanitize_status(raw: Any) -> PreviewStatus | None:
         if (
             set(raw) == {"kind", "errorClass", "category", "location"}
             and isinstance(error_class, str)
-            and _SAFE_ERROR_CLASS.fullmatch(error_class)
+            and error_class
+            in {
+                "AggregateError",
+                "Error",
+                "EvalError",
+                "RangeError",
+                "ReferenceError",
+                "SyntaxError",
+                "TypeError",
+                "URIError",
+            }
             and category in {"runtime", "promise"}
             and isinstance(location, str)
             and _SAFE_LOCATION.fullmatch(location)
