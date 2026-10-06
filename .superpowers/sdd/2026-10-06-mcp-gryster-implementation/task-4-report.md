@@ -48,6 +48,8 @@ uv run mypy src/mcp_gryster/grist/adapter.py
 
 Controller follow-up: the pristine focused suite passed 9/9. Ruff then reported RUF012 for mutable fake API class state; `configs` and `getattr_names` were annotated as `ClassVar`. Per controller instruction, no checks were rerun after this mechanical typing fix.
 
+Controller follow-up: Mypy reported the untyped third-party Pygrister import and branch-inferred paginator data type. The import now has a narrow `import-untyped` suppression, and the normalization variable is explicitly `Any`. Per controller instruction, no checks were rerun after these typing-only fixes.
+
 ## Concerns
 
 - Pagination limits are adapter constructor controls (`max_pages=100`, `max_items=10000`) because the existing immutable `Settings` interface does not define dedicated Grist pagination fields. Callers may set stricter configured values when constructing the adapter.

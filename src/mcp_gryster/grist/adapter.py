@@ -14,7 +14,7 @@ from time import monotonic
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 from uuid import uuid4
 
-from pygrister.api import GristApi
+from pygrister.api import GristApi  # type: ignore[import-untyped]
 
 from mcp_gryster.artifacts import ArtifactStore
 from mcp_gryster.audit import AuditEvent, AuditSink
@@ -274,6 +274,7 @@ class GristAdapter:
         arguments: dict[str, Any],
     ) -> GristCallResult:
         raw = operation(**arguments)
+        data: Any
         if spec.result_kind == "paginated":
             status_code, data = self._consume_pages(raw)
         else:
