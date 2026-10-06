@@ -6,15 +6,14 @@ from typing import Any, ClassVar
 import pytest
 from fastmcp import Client, FastMCP
 
-from mcp_gryster.grist.models import GristCallResult
-from mcp_gryster.grist.tools import register_grist_tools
 from mcp_gryster.artifacts import ArtifactStore
 from mcp_gryster.audit import AuditEvent, AuditSink
 from mcp_gryster.config import DomainAccess, DomainPolicy, Settings
 from mcp_gryster.grist.adapter import GristAdapter
-from mcp_gryster.grist.models import MethodSpec, ParameterSpec
+from mcp_gryster.grist.models import GristCallResult, MethodSpec, ParameterSpec
 from mcp_gryster.grist.policy import Policy
 from mcp_gryster.grist.registry import MethodRegistry
+from mcp_gryster.grist.tools import register_grist_tools
 
 
 class RecordingAdapter:
