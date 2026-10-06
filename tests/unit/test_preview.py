@@ -83,7 +83,7 @@ def _project(
             FileUpdate(
                 path="src/index.html",
                 content=(
-                    b"<!doctype html><script src='pre-head.js'></script>"
+                    b'<!doctype html SYSTEM "x>y"><script src="pre-head.js"></script>'
                     b"<html><head><link rel='stylesheet' href='style.css'></head>"
                     b"<body><output id='rendered'>waiting</output><script src='app.js'></script>"
                     b"</body></html>"

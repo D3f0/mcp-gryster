@@ -83,3 +83,10 @@ Per assignment, the controller owns these commands and browser installation; the
 - Per controller instruction, no checks were executed in this review fix round.
 - Made the pre-head attack fixture executable by serving an authored external script before the explicit `<head>`; it wraps `fetch` and records `data-pre-head-fetch`, while the ordinary authored widget script continues to exercise bridge reload, nonce, and forged-status behavior.
 - Per controller instruction, no checks were executed in this fix round.
+
+## Review Fix Round 4
+
+- Removed all doctype parsing from bridge injection and now prefixes the bridge before every authored byte, preventing quoted `>` characters from swallowing the bootstrap into a malformed doctype.
+- Strengthened the browser regression with `<!doctype html SYSTEM "x>y">` followed by the pre-head fetch-wrapping attack; existing assertions prove the nonce remains hidden and the real handshake succeeds.
+- Preview rendering may enter quirks mode because security takes precedence over preserving the authored doctype in the emulator.
+- Per controller instruction, no checks were executed in this review fix round.

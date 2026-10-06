@@ -437,11 +437,7 @@ def _asset_response(runtime: _Runtime, requested: str, *, inject_bridge: bool) -
     if inject_bridge and path.suffix.lower() == ".html":
         bridge_url = f"{runtime.origin}/t/{runtime.token}/grist-bridge.js"
         bridge = f'<script src="{bridge_url}"></script>'.encode()
-        doctype_end = content.lower().find(b">") if content.lower().startswith(b"<!doctype") else -1
-        if doctype_end >= 0:
-            content = content[: doctype_end + 1] + bridge + content[doctype_end + 1 :]
-        else:
-            content = bridge + content
+        content = bridge + content
         headers.pop("X-Frame-Options")
         headers["Content-Security-Policy"] = headers["Content-Security-Policy"].replace(
             "script-src 'self'", f"script-src 'self' {runtime.origin}"
