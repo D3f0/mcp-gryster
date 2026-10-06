@@ -22,6 +22,17 @@ Domain = Literal[
 ]
 Effect = Literal["read", "write"]
 ResultKind = Literal["json", "binary", "file", "paginated"]
+type JsonPrimitive = None | bool | int | float | str
+type JsonValue = JsonPrimitive | list[JsonValue] | dict[str, JsonValue]
+
+
+class GristCallResult(BaseModel):
+    """Safe normalized outcome from one successful Pygrister call."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    status_code: int = Field(ge=100, le=599)
+    data: JsonValue
 
 
 class ParameterSpec(BaseModel):
