@@ -81,3 +81,5 @@ Per assignment, the controller owns these commands and browser installation; the
 - Removed regex-based head injection. The bridge script is now byte-prefixed immediately after a leading doctype (or before all authored bytes without one), guaranteeing parser-blocking bridge execution before any authored markup or script.
 - Extended the one-shot browser regression with an authored inline script before the explicit head that wraps `fetch`; the test proves authored code executes later, cannot observe the status nonce, cannot reload the bridge, and cannot forge evidence.
 - Per controller instruction, no checks were executed in this review fix round.
+- Made the pre-head attack fixture executable by serving an authored external script before the explicit `<head>`; it wraps `fetch` and records `data-pre-head-fetch`, while the ordinary authored widget script continues to exercise bridge reload, nonce, and forged-status behavior.
+- Per controller instruction, no checks were executed in this fix round.

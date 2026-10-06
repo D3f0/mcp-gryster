@@ -83,16 +83,21 @@ def _project(
             FileUpdate(
                 path="src/index.html",
                 content=(
-                    b"<!doctype html><script>"
-                    b"window.authoredFetch = window.fetch; window.fetch = (...args) => { "
-                    b"document.documentElement.dataset.preHeadFetch = 'wrapped'; "
-                    b"return window.authoredFetch(...args); };</script>"
+                    b"<!doctype html><script src='pre-head.js'></script>"
                     b"<html><head><link rel='stylesheet' href='style.css'></head>"
                     b"<body><output id='rendered'>waiting</output><script src='app.js'></script>"
                     b"</body></html>"
                 )
             ),
             FileUpdate(path="src/app.js", content=source),
+            FileUpdate(
+                path="src/pre-head.js",
+                content=(
+                    b"window.authoredFetch = window.fetch; window.fetch = (...args) => { "
+                    b"document.documentElement.dataset.preHeadFetch = 'wrapped'; "
+                    b"return window.authoredFetch(...args); };\n"
+                ),
+            ),
             FileUpdate(path="src/style.css", content=b"output { color: green; }\n"),
             FileUpdate(path="src/blob.unknown", content=b"not served"),
             FileUpdate(
