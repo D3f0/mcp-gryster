@@ -15,8 +15,17 @@ from mcp_gryster.widget.models import (
     WidgetMetadata,
 )
 from mcp_gryster.widget.projects import ProjectStore
+from mcp_gryster.widget.validation import (
+    ALLOWED_GRIST_COLUMN_TYPES,
+    PreviewEvidence,
+    PreviewEvidenceStore,
+    ValidationIssue,
+    ValidationReport,
+    WidgetValidator,
+)
 
 __all__ = [
+    "ALLOWED_GRIST_COLUMN_TYPES",
     "FileUpdate",
     "FixtureColumn",
     "FixtureManager",
@@ -25,9 +34,14 @@ __all__ = [
     "FixtureSummary",
     "GristFixtureRequest",
     "PreviewFixture",
+    "PreviewEvidence",
+    "PreviewEvidenceStore",
     "ProjectSnapshot",
     "ProjectStore",
     "WidgetAuthor",
     "WidgetColumn",
     "WidgetMetadata",
+    "ValidationIssue",
+    "ValidationReport",
+    "WidgetValidator",
 ]
