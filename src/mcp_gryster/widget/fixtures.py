@@ -67,8 +67,9 @@ class FixtureManager:
         """Commit a validated client fixture against its expected project revision."""
         parsed = self._validate_fixture(fixture)
         self._validate_metadata(parsed)
-        self._validate_fixture_shape(parsed)
-        return self._commit(project_id, parsed)
+        sanitized = self._sanitize_client_fixture(parsed)
+        self._validate_fixture_shape(sanitized)
+        return self._commit(project_id, sanitized)
 
     async def create_from_grist(
         self,
@@ -225,6 +226,27 @@ class FixtureManager:
                 fields[column.id] = self._redact_value(column.id, value)
             selected.append(FixtureRecord(id=record_id, fields=fields))
         return tuple(selected)
+
+    def _sanitize_client_fixture(self, fixture: PreviewFixture) -> PreviewFixture:
+        columns = {column.id: column for column in fixture.columns}
+        if any(
+            column.type in _ATTACHMENT_TYPES for column in fixture.columns
+        ) and not fixture.include_attachment_metadata:
+            raise McpGrysterError(
+                "INVALID_ARGUMENT", "Attachment fixture columns require explicit metadata opt-in"
+            )
+        records: list[FixtureRecord] = []
+        for record in fixture.records:
+            fields: dict[str, Any] = {}
+            for column_id, value in record.fields.items():
+                column = columns.get(column_id)
+                if column is None:
+                    raise McpGrysterError("VALIDATION_FAILED", "Fixture is invalid")
+                if column.type in _ATTACHMENT_TYPES:
+                    value = self._attachment_ids(value)
+                fields[column_id] = self._redact_value(column_id, value)
+            records.append(FixtureRecord(id=record.id, fields=fields))
+        return fixture.model_copy(update={"records": tuple(records)})
 
     def _validate_fixture_shape(self, fixture: PreviewFixture) -> None:
         if len(fixture.records) > self._max_rows:

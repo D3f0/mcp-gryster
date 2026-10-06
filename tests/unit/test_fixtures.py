@@ -387,3 +387,47 @@ def test_source_materialization_selector_excludes_fixtures() -> None:
     assert FixtureManager.source_materialization_paths(
         ("fixtures/preview.json", "src/index.html", "widget.json")
     ) == ("src/index.html", "widget.json")
+
+
+def test_client_fixture_redacts_records_and_restricts_attachment_metadata(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, redactions=(r"(?i)ssn", r"\b\d{3}-\d{2}-\d{4}\b"))
+    store = _store(settings)
+    revision = _project(store)
+    manager = FixtureManager(store, FakeAdapter({}), settings)
+    fixture = _client_fixture(
+        revision,
+        columns=[
+            {"id": "Name", "label": "Name", "type": "Text"},
+            {"id": "SSN", "label": "SSN", "type": "Text"},
+            {"id": "Photo", "label": "Photo", "type": "Attachments"},
+        ],
+        records=[
+            {
+                "id": 1,
+                "fields": {
+                    "Name": "call 123-45-6789",
+                    "SSN": "000-00-0000",
+                    "Photo": ["L", 7, 8],
+                },
+            }
+        ],
+    )
+
+    with pytest.raises(McpGrysterError) as caught:
+        manager.create("safe-widget", fixture)
+    assert caught.value.code == "INVALID_ARGUMENT"
+    assert store.read("safe-widget").revision == revision
+
+    fixture["includeAttachmentMetadata"] = True
+    summary = manager.create("safe-widget", fixture)
+    payload = json.loads(_fixture_bytes(store, summary.revision))
+    assert payload["records"] == [
+        {
+            "fields": {
+                "Name": "[REDACTED]",
+                "Photo": [7, 8],
+                "SSN": "[REDACTED]",
+            },
+            "id": 1,
+        }
+    ]

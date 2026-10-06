@@ -158,6 +158,7 @@ class PreviewFixture(BaseModel):
     selected_record_id: int | str | None = Field(default=None, alias="selectedRecordId")
     mappings: dict[str, str] = Field(default_factory=dict)
     options: dict[str, Any] = Field(default_factory=dict)
+    include_attachment_metadata: bool = Field(default=False, alias="includeAttachmentMetadata")
     access_level: Literal["none", "read table", "full"] = Field(alias="accessLevel")
 
     @field_validator("expected_revision")
