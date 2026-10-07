@@ -8,6 +8,13 @@ import pytest
 from tests.integration import conftest
 
 
+def test_compose_uses_request_origin_for_docker_allocated_port() -> None:
+    compose = conftest._COMPOSE_FILE.read_text()
+
+    assert "APP_HOME_INTERNAL_URL: http://localhost:8484" in compose
+    assert "APP_HOME_URL" not in compose
+
+
 def test_published_base_url_accepts_docker_allocated_loopback_port() -> None:
     completed = SimpleNamespace(returncode=0, stdout="127.0.0.1:49153\n")
 

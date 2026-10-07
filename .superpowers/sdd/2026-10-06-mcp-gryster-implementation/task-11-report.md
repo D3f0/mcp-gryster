@@ -115,3 +115,10 @@ Observed static checks:
 
 - Updated the lifecycle unit test to match the stable `usable Grist port` semantic in the production validation error instead of the obsolete `published port` wording.
 - Per assignment, no checks were run.
+
+## Dynamic Public Origin Fix
+
+- Removed the fixed `APP_HOME_URL` from Compose so Grist derives its public origin from the incoming request's `Host` header and preserves Docker's dynamically assigned host port through login redirects.
+- Retained `APP_HOME_INTERNAL_URL` for container-local health and service communication.
+- Added a focused static regression assertion for the Compose origin configuration.
+- Per controller instruction, no checks were run.
