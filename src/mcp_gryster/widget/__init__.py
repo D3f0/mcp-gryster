@@ -16,7 +16,7 @@ from mcp_gryster.widget.models import (
     WidgetColumn,
     WidgetMetadata,
 )
-from mcp_gryster.widget.packaging import PackageResult, WidgetPackager
+from mcp_gryster.widget.packaging import ArtifactReference, PackageResult, WidgetPackager
 from mcp_gryster.widget.preview import (
     PreviewManager,
     PreviewSession,
@@ -35,6 +35,7 @@ from mcp_gryster.widget.validation import (
 )
 
 __all__ = [
+    "ArtifactReference",
     "ALLOWED_GRIST_COLUMN_TYPES",
     "FileUpdate",
     "FixtureColumn",

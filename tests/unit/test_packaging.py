@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 from zipfile import ZipFile
 
 import pytest
 
-from mcp_gryster.artifacts import ArtifactStore
+from mcp_gryster.artifacts import Artifact, ArtifactStore
 from mcp_gryster.config import Settings
 from mcp_gryster.errors import McpGrysterError
 from mcp_gryster.widget.fixtures import FixtureManager
@@ -23,18 +25,21 @@ class _UnusedAdapter:
         raise AssertionError(f"unexpected Grist call: {method} {arguments}")
 
 
-def _components(tmp_path: Path) -> tuple[ProjectStore, PreviewEvidenceStore, WidgetPackager]:
+def _components(
+    tmp_path: Path,
+) -> tuple[ProjectStore, PreviewEvidenceStore, ArtifactStore, WidgetPackager]:
     settings = Settings(workspace_root=tmp_path / "workspace")
     store = ProjectStore(settings)
     evidence = PreviewEvidenceStore()
     fixtures = FixtureManager(store, _UnusedAdapter(), settings)
+    artifacts = ArtifactStore(settings.workspace_root / "artifacts")
     packager = WidgetPackager(
         store,
         fixtures,
         WidgetValidator(store, evidence),
-        ArtifactStore(settings.workspace_root / "artifacts"),
+        artifacts,
     )
-    return store, evidence, packager
+    return store, evidence, artifacts, packager
 
 
 def _project(store: ProjectStore) -> str:
@@ -69,7 +74,7 @@ def _project(store: ProjectStore) -> str:
 
 
 def test_package_requires_exact_current_packageable_revision(tmp_path: Path) -> None:
-    store, evidence, packager = _components(tmp_path)
+    store, evidence, _, packager = _components(tmp_path)
     revision = _project(store)
 
     with pytest.raises(McpGrysterError) as not_packageable:
@@ -89,7 +94,7 @@ def test_package_requires_exact_current_packageable_revision(tmp_path: Path) -> 
 def test_package_uses_fixture_source_materialization_and_only_src_enters_zip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    store, evidence, packager = _components(tmp_path)
+    store, evidence, artifacts, packager = _components(tmp_path)
     revision = _project(store)
     evidence.record_success("safe-widget", revision, None)
     called: list[tuple[str, str]] = []
@@ -105,22 +110,26 @@ def test_package_uses_fixture_source_materialization_and_only_src_enters_zip(
     )
 
     assert called == [("safe-widget", revision)]
-    with ZipFile(io.BytesIO(result.artifact.path.read_bytes())) as archive:
+    archive_bytes = artifacts.read_bytes(result.artifact.kind, result.artifact.name)
+    with ZipFile(io.BytesIO(archive_bytes)) as archive:
         assert archive.namelist() == ["pages/app.js", "pages/main.html"]
-        assert all(not name.startswith(("fixtures/", ".mcp-gryster/", "preview/")) for name in archive.namelist())
-        assert b"must-not-ship" not in result.artifact.path.read_bytes()
+        assert all(
+            not name.startswith(("fixtures/", ".mcp-gryster/", "preview/"))
+            for name in archive.namelist()
+        )
+    assert b"must-not-ship" not in archive_bytes
 
 
 def test_manifest_is_canonical_and_package_is_byte_deterministic(tmp_path: Path) -> None:
-    store, evidence, packager = _components(tmp_path)
+    store, evidence, artifacts, packager = _components(tmp_path)
     revision = _project(store)
     evidence.record_success("safe-widget", revision, None)
 
     first = packager.package(
         "safe-widget", "https://widgets.example/base/", expected_revision=revision
     )
-    first_zip = first.artifact.path.read_bytes()
-    first_manifest = first.manifest.path.read_bytes()
+    first_zip = artifacts.read_bytes(first.artifact.kind, first.artifact.name)
+    first_manifest = artifacts.read_bytes(first.manifest.kind, first.manifest.name)
     second = packager.package(
         "safe-widget", "https://widgets.example/base/", expected_revision=revision
     )
@@ -138,14 +147,14 @@ def test_manifest_is_canonical_and_package_is_byte_deterministic(tmp_path: Path)
         "widgetId": "com.example.safe",
     }
     assert first_manifest == (json.dumps(expected_manifest, indent=2, sort_keys=True) + "\n").encode()
-    assert second.artifact.path.read_bytes() == first_zip
-    assert second.manifest.path.read_bytes() == first_manifest
-    assert first.sha256 == hashlib.sha256(first_zip).hexdigest()
-    assert first.manifest_sha256 == hashlib.sha256(first_manifest).hexdigest()
-    assert first.artifact.sha256 == first.sha256
-    assert first.manifest.sha256 == first.manifest_sha256
+    assert artifacts.read_bytes(second.artifact.kind, second.artifact.name) == first_zip
+    assert artifacts.read_bytes(second.manifest.kind, second.manifest.name) == first_manifest
+    assert first.artifact.sha256 == hashlib.sha256(first_zip).hexdigest()
+    assert first.manifest.sha256 == hashlib.sha256(first_manifest).hexdigest()
     assert first.artifact.name == f"safe-widget-{revision}.zip"
-    assert first.manifest.name == f"safe-widget-{revision}.json"
+    assert first.manifest.name == f"safe-widget-{revision}-{first.manifest.sha256}.json"
+    assert "path" not in first.artifact.model_dump()
+    assert "path" not in first.manifest.model_dump()
 
     with ZipFile(io.BytesIO(first_zip)) as archive:
         assert archive.namelist() == sorted(archive.namelist())
@@ -157,7 +166,7 @@ def test_manifest_is_canonical_and_package_is_byte_deterministic(tmp_path: Path)
 def test_package_rejects_revision_change_before_artifact_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    store, evidence, packager = _components(tmp_path)
+    store, evidence, _, packager = _components(tmp_path)
     revision = _project(store)
     evidence.record_success("safe-widget", revision, None)
     original = packager._fixtures.materialize_sources
@@ -174,3 +183,78 @@ def test_package_rejects_revision_change_before_artifact_commit(
         packager.package("safe-widget", "https://widgets.example", expected_revision=revision)
     assert caught.value.code == "REVISION_CONFLICT"
     assert not (store.workspace / "artifacts" / "widget").exists()
+
+
+def test_manifest_artifact_identity_includes_manifest_content(
+    tmp_path: Path,
+) -> None:
+    store, evidence, artifacts, packager = _components(tmp_path)
+    revision = _project(store)
+    evidence.record_success("safe-widget", revision, None)
+
+    first = packager.package(
+        "safe-widget", "https://one.example/widgets", expected_revision=revision
+    )
+    second = packager.package(
+        "safe-widget", "https://two.example/widgets", expected_revision=revision
+    )
+
+    assert first.artifact.name == second.artifact.name
+    assert first.manifest.name != second.manifest.name
+    assert first.manifest.sha256 != second.manifest.sha256
+    assert artifacts.read_bytes(first.manifest.kind, first.manifest.name) != artifacts.read_bytes(
+        second.manifest.kind, second.manifest.name
+    )
+
+
+def test_package_holds_revision_lock_through_both_artifact_commits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, evidence, artifacts, packager = _components(tmp_path)
+    competing_store = ProjectStore(store.workspace)
+    revision = _project(store)
+    evidence.record_success("safe-widget", revision, None)
+    first_commit_started = Event()
+    continue_commits = Event()
+    update_started = Event()
+    update_completed = Event()
+    commits: list[tuple[str, str]] = []
+    original_put_bytes = artifacts.put_bytes
+
+    def observe_commit(kind: str, name: str, data: bytes) -> Artifact:
+        commits.append((kind, name))
+        if len(commits) == 1:
+            first_commit_started.set()
+            assert continue_commits.wait(timeout=5)
+        return original_put_bytes(kind, name, data)
+
+    def update_project() -> str:
+        update_started.set()
+        updated = competing_store.apply_files(
+            "safe-widget", revision, {"src/late.txt": b"late\n"}, []
+        )
+        update_completed.set()
+        return updated.revision
+
+    monkeypatch.setattr(artifacts, "put_bytes", observe_commit)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        package_future = pool.submit(
+            packager.package,
+            "safe-widget",
+            "https://widgets.example",
+            expected_revision=revision,
+        )
+        assert first_commit_started.wait(timeout=5)
+        update_future = pool.submit(update_project)
+        update_started.wait(timeout=5)
+        update_was_blocked = not update_completed.wait(timeout=0.1)
+        continue_commits.set()
+        result = package_future.result(timeout=5)
+        updated_revision = update_future.result(timeout=5)
+    assert update_was_blocked
+
+    assert updated_revision != revision
+    assert commits == [
+        ("widget", result.artifact.name),
+        ("widget", result.manifest.name),
+    ]

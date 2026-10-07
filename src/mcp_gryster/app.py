@@ -90,6 +90,7 @@ def create_app(settings: Settings) -> FastMCP:
         validator=widget_validator,
         previews=preview_manager,
         packager=widget_packager,
+        artifacts=artifacts,
         registry=registry,
     )
     return app

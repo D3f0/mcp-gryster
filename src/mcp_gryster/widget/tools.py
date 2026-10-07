@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any, Literal
 
 from fastmcp import FastMCP
 
+from mcp_gryster.artifacts import ArtifactStore
 from mcp_gryster.errors import McpGrysterError
 from mcp_gryster.grist.registry import MethodRegistry
 from mcp_gryster.widget.fixtures import FixtureManager
@@ -34,6 +34,7 @@ def register_widget_tools(
     validator: WidgetValidator,
     previews: PreviewManager,
     packager: WidgetPackager,
+    artifacts: ArtifactStore,
     registry: MethodRegistry,
 ) -> None:
     """Register the complete project-to-package widget authoring surface."""
@@ -171,7 +172,7 @@ def register_widget_tools(
         mime_type="application/octet-stream",
     )
     def dist_resource(name: str) -> bytes:
-        return _read_dist(store, name)
+        return _read_dist(artifacts, name)
 
     @mcp.resource(
         "widget://grist/methods",
@@ -199,17 +200,8 @@ def _read_authored_file(store: ProjectStore, project_id: str, path: str) -> byte
         raise McpGrysterError("PATH_NOT_ALLOWED", "Widget project path is not allowed") from exc
 
 
-def _read_dist(store: ProjectStore, name: str) -> bytes:
-    if not name or Path(name).name != name or name.startswith("."):
-        raise McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed")
-    root = store.workspace / "artifacts" / "widget"
-    path = root / name
-    try:
-        if root.is_symlink() or path.is_symlink() or not path.is_file():
-            raise OSError
-        return path.read_bytes()
-    except OSError as exc:
-        raise McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed") from exc
+def _read_dist(artifacts: ArtifactStore, name: str) -> bytes:
+    return artifacts.read_bytes("widget", name)
 
 
 def _json(value: Any) -> str:

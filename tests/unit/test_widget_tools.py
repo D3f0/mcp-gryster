@@ -10,11 +10,12 @@ from fastmcp import Client
 from mcp.shared.exceptions import McpError
 
 from mcp_gryster.app import create_app
+from mcp_gryster.artifacts import ArtifactStore
 from mcp_gryster.config import Settings
 from mcp_gryster.errors import McpGrysterError
 from mcp_gryster.widget.preview import PreviewManager
 from mcp_gryster.widget.projects import ProjectStore
-from mcp_gryster.widget.tools import _read_authored_file
+from mcp_gryster.widget.tools import _read_authored_file, _read_dist
 
 
 async def _call(client: Client[Any], name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -281,6 +282,22 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
         method_data = json.loads(methods[0].text)
         assert method_data["pygrister_version"] == "0.10.0"
         assert method_data["methods"]
+
+
+def test_dist_reader_delegates_to_artifact_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = ArtifactStore(tmp_path / "artifacts")
+    calls: list[tuple[str, str]] = []
+
+    def read_bytes(kind: str, name: str) -> bytes:
+        calls.append((kind, name))
+        return b"artifact"
+
+    monkeypatch.setattr(artifacts, "read_bytes", read_bytes)
+
+    assert _read_dist(artifacts, "package.zip") == b"artifact"
+    assert calls == [("widget", "package.zip")]
 
 
 async def _fake_start(

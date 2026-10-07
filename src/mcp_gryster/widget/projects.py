@@ -203,6 +203,24 @@ class ProjectStore:
             self._replace_pointer(project, revision)
             return self._snapshot(project_id, revision, tuple(sorted(resulting)))
 
+    @contextmanager
+    def hold_current_revision(
+        self, project_id: str, expected_revision: str
+    ) -> Generator[None, None, None]:
+        """Hold the project advisory lock while an exact visible revision is committed."""
+        project_id = validate_project_id(project_id)
+        expected_revision = validate_revision(expected_revision)
+        project = self.project_path(project_id)
+        with self._lock, _project_lock(project):
+            current_revision = self._read_pointer(project)
+            if current_revision != expected_revision:
+                raise McpGrysterError(
+                    "REVISION_CONFLICT",
+                    "Project revision does not match",
+                    {"current_revision": current_revision},
+                )
+            yield
+
     def materialize(
         self,
         project_id: str,

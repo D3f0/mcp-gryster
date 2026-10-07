@@ -96,6 +96,72 @@ class ArtifactStore:
             sha256=hashlib.sha256(data).hexdigest(),
         )
 
+    def read_bytes(self, kind: str, name: str) -> bytes:
+        """Read one regular artifact without following any symlink component."""
+        relative = _validated_relative_path(kind, name)
+        if not _supports_dir_fd():
+            return self._read_bytes_portable(relative)
+        parent_fd: int | None = None
+        descriptor: int | None = None
+        try:
+            parent_fd = _open_existing_parent(self._root, relative.parts[:-1])
+            flags = os.O_RDONLY
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(relative.name, flags, dir_fd=parent_fd)
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise _path_error()
+            with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                return stream.read()
+        except McpGrysterError:
+            raise
+        except OSError as exc:
+            raise _path_error() from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+            if parent_fd is not None:
+                os.close(parent_fd)
+
+    def _read_bytes_portable(self, relative: Path) -> bytes:
+        target = self._root.joinpath(relative)
+        parent = target.parent
+        descriptor: int | None = None
+        try:
+            _ensure_contained(self._root, parent)
+            _ensure_no_symlink_components(self._root, parent)
+            flags = os.O_RDONLY
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            descriptor = os.open(target, flags)
+            descriptor_stat = os.fstat(descriptor)
+            if not stat.S_ISREG(descriptor_stat.st_mode):
+                raise _path_error()
+            path_stat = target.lstat()
+            if stat.S_ISLNK(path_stat.st_mode) or (
+                path_stat.st_dev,
+                path_stat.st_ino,
+            ) != (descriptor_stat.st_dev, descriptor_stat.st_ino):
+                raise _path_error()
+            with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                data = stream.read()
+            _ensure_contained(self._root, parent)
+            _ensure_no_symlink_components(self._root, parent)
+            final_stat = target.lstat()
+            if stat.S_ISLNK(final_stat.st_mode) or (
+                final_stat.st_dev,
+                final_stat.st_ino,
+            ) != (descriptor_stat.st_dev, descriptor_stat.st_ino):
+                raise _path_error()
+            return data
+        except McpGrysterError:
+            raise
+        except OSError as exc:
+            raise _path_error() from exc
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
     def _put_bytes_portable(
         self, kind: str, name: str, relative: Path, data: bytes
     ) -> Artifact:
@@ -239,6 +305,23 @@ def _open_parent(root: Path, parts: tuple[str, ...]) -> int:
         os.close(current_fd)
         raise
 
+
+def _open_existing_parent(root: Path, parts: tuple[str, ...]) -> int:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    current_fd = os.open(root, flags)
+    try:
+        for part in parts:
+            next_fd = os.open(part, flags, dir_fd=current_fd)
+            os.close(current_fd)
+            current_fd = next_fd
+        return current_fd
+    except BaseException:
+        os.close(current_fd)
+        raise
 
 def _path_error() -> McpGrysterError:
     return McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed")

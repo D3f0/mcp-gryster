@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import secrets
@@ -24,6 +25,17 @@ _FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 _FILE_MODE = 0o100644
 
 
+class ArtifactReference(BaseModel):
+    """Path-free public identity for one stored package artifact."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    kind: str
+    name: str
+    size_bytes: int = Field(ge=0)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class PackageResult(BaseModel):
     """Content-addressed result of packaging one immutable project revision."""
 
@@ -31,10 +43,8 @@ class PackageResult(BaseModel):
 
     project_id: str
     revision: str
-    artifact: Artifact
-    manifest: Artifact
-    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    artifact: ArtifactReference
+    manifest: ArtifactReference
 
 
 class WidgetPackager:
@@ -80,24 +90,30 @@ class WidgetPackager:
             metadata = _load_metadata(destination / "widget.json", project_id)
             archive_bytes = _archive_sources(destination / "src")
             manifest_bytes = _manifest(metadata, project_id, public_base_url)
-            current = self._store.read(project_id)
-            if current.revision != revision:
-                raise _revision_conflict(current.revision)
+            manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
             stem = f"{project_id}-{revision}"
-            artifact = self._artifacts.put_bytes("widget", f"{stem}.zip", archive_bytes)
-            manifest = self._artifacts.put_bytes("widget", f"{stem}.json", manifest_bytes)
+            manifest_name = f"{stem}-{manifest_sha256}.json"
+            with self._store.hold_current_revision(project_id, revision):
+                artifact = self._artifacts.put_bytes("widget", f"{stem}.zip", archive_bytes)
+                manifest = self._artifacts.put_bytes("widget", manifest_name, manifest_bytes)
         finally:
             shutil.rmtree(destination, ignore_errors=True)
 
         return PackageResult(
             project_id=project_id,
             revision=revision,
-            artifact=artifact,
-            manifest=manifest,
-            sha256=artifact.sha256,
-            manifest_sha256=manifest.sha256,
+            artifact=_reference(artifact),
+            manifest=_reference(manifest),
         )
 
+
+def _reference(artifact: Artifact) -> ArtifactReference:
+    return ArtifactReference(
+        kind=artifact.kind,
+        name=artifact.name,
+        size_bytes=artifact.size_bytes,
+        sha256=artifact.sha256,
+    )
 
 def _load_metadata(path: Path, project_id: str) -> WidgetMetadata:
     try:

@@ -148,6 +148,52 @@ def test_artifact_store_writes_bytes_atomically(tmp_path: Path) -> None:
     assert artifact.path.resolve().is_relative_to(tmp_path.resolve())
 
 
+def test_artifact_store_reads_regular_artifact(tmp_path: Path) -> None:
+    store = ArtifactStore(tmp_path)
+    store.put_bytes("preview", "index.html", b"safe")
+
+    assert store.read_bytes("preview", "index.html") == b"safe"
+
+
+def test_artifact_store_read_rejects_symlink_components(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (outside / "private.bin").write_bytes(b"private")
+    (root / "linked").symlink_to(outside, target_is_directory=True)
+    (root / "preview").mkdir()
+    (root / "preview" / "linked.bin").symlink_to(outside / "private.bin")
+    store = ArtifactStore(root)
+
+    for kind, name in (("linked", "private.bin"), ("preview", "linked.bin")):
+        with pytest.raises(McpGrysterError) as caught:
+            store.read_bytes(kind, name)
+        assert caught.value.code == "PATH_NOT_ALLOWED"
+
+
+def test_artifact_store_read_fallback_stays_contained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mcp_gryster import artifacts
+
+    monkeypatch.setattr(artifacts, "_supports_dir_fd", lambda: False)
+    root = tmp_path / "artifacts"
+    outside = tmp_path / "outside"
+    root.mkdir()
+    outside.mkdir()
+    (outside / "private.bin").write_bytes(b"private")
+    (root / "preview").mkdir()
+    (root / "preview" / "safe.bin").write_bytes(b"safe")
+    (root / "linked").symlink_to(outside, target_is_directory=True)
+    store = ArtifactStore(root)
+
+    assert store.read_bytes("preview", "safe.bin") == b"safe"
+    with pytest.raises(McpGrysterError) as caught:
+        store.read_bytes("linked", "private.bin")
+    assert caught.value.code == "PATH_NOT_ALLOWED"
+
+
 @pytest.mark.parametrize("name", ["../x", "/tmp/x"])
 def test_artifact_store_rejects_unsafe_names(tmp_path: Path, name: str) -> None:
     store = ArtifactStore(tmp_path)
