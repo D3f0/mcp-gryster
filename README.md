@@ -58,7 +58,7 @@ The bundled method registry is generated for Pygrister 0.10.0. Unsupported or un
 
 As an additional workflow—not the product's primary identity—MCP clients can create a project, edit plain HTML/CSS/JavaScript under `src/`, capture a bounded preview fixture, validate and preview an immutable revision, and package it. The server does not invoke an LLM itself.
 
-Fixtures capture only explicitly requested columns and rows. Sensitive column names, labels, and matching values are redacted; attachment metadata requires explicit opt-in. Limits control row count and payload size. Private `fixtures/` data and credentials are excluded from generated widget packages, which contain authored `src/` files only. Fixture previews use ephemeral IPv4 loopback ports and capability URLs; live previews serve authored files unchanged.
+Fixtures capture only explicitly requested columns and rows. Column IDs remain unchanged so widget mappings continue to work; labels and values matching redaction rules are replaced. If an identifier is itself sensitive, omit that column with the request allowlist. Attachment metadata requires explicit opt-in. Limits control row count and payload size. Private `fixtures/` data and credentials are excluded from generated widget packages, which contain authored `src/` files only. Fixture previews use ephemeral IPv4 loopback ports and capability URLs; live previews serve authored files unchanged.
 
 The MCP surface includes `widget.projects.*`, `widget.fixtures.*`, `widget.validate`, `widget.preview.*`, and `widget.package`. Read-only `widget://` resources expose project metadata and authored files, validation reports, generated artifacts, and the checked-in Grist method registry.
 

@@ -35,8 +35,6 @@ jobs:
 
   distribution:
     runs-on: ubuntu-latest
-    env:
-      UV_CACHE_DIR: ${{ runner.temp }}/uvx-cache
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -46,6 +44,12 @@ jobs:
         run: uv sync --locked
       - name: Build wheel
         run: uv build --wheel
+      - name: Prepare empty wheel uvx cache
+        run: |
+          cache="$RUNNER_TEMP/wheel-uvx-cache"
+          rm -rf "$cache"
+          mkdir -p "$cache"
+          echo "UV_CACHE_DIR=$cache" >> "$GITHUB_ENV"
       - name: Verify clean uvx installation and CLI
         run: |
           wheel=$(printf '%s\n' dist/mcp_gryster-*.whl)

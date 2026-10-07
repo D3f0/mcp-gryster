@@ -22,3 +22,10 @@ Per assignment instruction, no tests, builds, lint, mypy, installs, formatter, o
 - Changed the clean-environment wheel install test to resolve dependencies normally instead of depending on incidental contents of the developer's global uv cache.
 - Kept the CI distribution cache empty while allowing `uv sync` and wheel-based `uvx` invocations to populate and resolve it from scratch; removed offline flags from both bounded uvx smoke paths.
 - Per controller instruction, no checks were run for this correction.
+
+## Controller Fix Round 1
+
+- Moved the distribution job's clean cache boundary to immediately before wheel-based uvx checks, leaving locked sync/build and smoke-helper dependencies on the normal cache.
+- Recreates a distinct empty wheel uvx cache and exports it through `GITHUB_ENV`, so both direct uvx and the STDIO child inherit the same isolated cache.
+- Corrected fixture documentation: column IDs are retained for mappings, matching labels and values are redacted, and sensitive identifiers must be omitted via the request allowlist.
+- Per controller instruction, no checks were run.
