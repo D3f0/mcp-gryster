@@ -8,9 +8,10 @@ import sys
 import time
 from http.cookiejar import CookieJar
 from pathlib import Path
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
+from urllib.request import HTTPCookieProcessor, OpenerDirector, Request, build_opener, urlopen
 
 from pygrister.api import GristApi  # type: ignore[import-untyped]
 
@@ -20,6 +21,8 @@ _SENSITIVE_OUTPUT = (
     re.compile(r"(?i)((?:api[-_ ]?key|token)\s*[=:]\s*)[^\s,;\]\}\"']+"),
     re.compile(r'(?i)("(?:api_key|key|token)"\s*:\s*")[^"]+(\")'),
 )
+_TRANSIENT_HTTP_STATUSES = frozenset({429, 502, 503, 504})
+_RETRY_INTERVAL = 0.5
 
 
 def _sanitize_error(value: object) -> str:
@@ -32,27 +35,57 @@ def _sanitize_error(value: object) -> str:
     return sanitized
 
 
-
-def _wait_until_ready(base_url: str, timeout: float = 120.0) -> None:
+def _wait_until_ready(
+    base_url: str, timeout: float = 120.0, retry_interval: float = _RETRY_INTERVAL
+) -> None:
     deadline = time.monotonic() + timeout
     while True:
         try:
-            with urlopen(f"{base_url}/status", timeout=5) as response:
+            with urlopen(f"{base_url}/status?ready=1", timeout=min(5, timeout)) as response:
                 if response.status == 200:
                     return
         except (HTTPError, URLError, TimeoutError):
             pass
         if time.monotonic() >= deadline:
             raise RuntimeError("Grist did not become ready")
-        time.sleep(0.5)
+        time.sleep(retry_interval)
 
 
-def _create_api_key(base_url: str) -> str:
+def _open_when_ready(
+    opener: OpenerDirector,
+    request: str | Request,
+    deadline: float,
+    retry_interval: float,
+) -> Any:
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Grist login did not become ready")
+        try:
+            return opener.open(request, timeout=min(10, remaining))
+        except HTTPError as exc:
+            if exc.code not in _TRANSIENT_HTTP_STATUSES:
+                raise
+            exc.close()
+        except (URLError, TimeoutError):
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("Grist login did not become ready")
+        time.sleep(min(retry_interval, remaining))
+
+
+def _create_api_key(
+    base_url: str, timeout: float = 120.0, retry_interval: float = _RETRY_INTERVAL
+) -> str:
+    deadline = time.monotonic() + timeout
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
-    with opener.open(f"{base_url}/", timeout=10):
+    with _open_when_ready(opener, f"{base_url}/", deadline, retry_interval):
         pass
     query = urlencode({"username": _EMAIL, "name": "Integration User", "next": base_url})
-    with opener.open(f"{base_url}/test/login?{query}", timeout=10):
+    with _open_when_ready(
+        opener, f"{base_url}/test/login?{query}", deadline, retry_interval
+    ):
         pass
     request = Request(
         f"{base_url}/api/profile/apikey",
@@ -60,7 +93,7 @@ def _create_api_key(base_url: str) -> str:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with opener.open(request, timeout=10) as response:
+    with _open_when_ready(opener, request, deadline, retry_interval) as response:
         payload = json.load(response)
     if not isinstance(payload, str) or not payload:
         raise RuntimeError("Grist returned an invalid API key")
