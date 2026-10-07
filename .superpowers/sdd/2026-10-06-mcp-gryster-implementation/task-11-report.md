@@ -62,3 +62,10 @@ Observed static checks:
 - Retained compatibility with quoted JSON string responses and reject empty, malformed, or non-key payloads without including their contents in errors.
 - Added regression coverage for both bare-text and JSON-string response forms.
 - Per controller instruction, no checks were run for this follow-up.
+
+## Organization Selection Follow-up
+
+- Changed bootstrap organization discovery to select the unique organization whose domain or name matches configured `GRIST_TEAM_SITE`, rather than requiring the API's complete organization list to contain one entry.
+- Added regression coverage showing the personal `docs-5` site is ignored in favor of the `integration` team site.
+- Matching failures remain generic and do not include the organization payload.
+- Per controller instruction, no checks were run for this follow-up.

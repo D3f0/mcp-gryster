@@ -18,6 +18,7 @@ _BOOTSTRAP = importlib.util.module_from_spec(_BOOTSTRAP_SPEC)
 _BOOTSTRAP_SPEC.loader.exec_module(_BOOTSTRAP)
 _create_api_key = _BOOTSTRAP._create_api_key
 _wait_until_ready = _BOOTSTRAP._wait_until_ready
+_select_organization = _BOOTSTRAP._select_organization
 
 
 class _BootstrapHandler(BaseHTTPRequestHandler):
@@ -94,6 +95,15 @@ def test_wait_until_ready_uses_full_readiness_probe(
     assert counts == {"/status": 2}
     assert requests[0][0] == "/status?ready=1"
 
+
+
+def test_select_organization_ignores_personal_site() -> None:
+    organizations = [
+        {"id": 5, "name": "Personal", "domain": "docs-5"},
+        {"id": 7, "name": "Integration", "domain": "integration"},
+    ]
+
+    assert _select_organization(organizations, "integration") == organizations[1]
 
 def test_create_api_key_retries_transient_responses_and_keeps_session_cookie(
     bootstrap_server: tuple[

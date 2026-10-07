@@ -115,7 +115,22 @@ def _expect_success(operation: str, response: tuple[int, object]) -> object:
     return data
 
 
+def _select_organization(organizations: object, team_site: str) -> dict[str, object]:
+    if not isinstance(organizations, list):
+        raise RuntimeError("Grist returned an invalid organization list")
+    matches = [
+        organization
+        for organization in organizations
+        if isinstance(organization, dict)
+        and (organization.get("domain") == team_site or organization.get("name") == team_site)
+    ]
+    if len(matches) != 1 or "id" not in matches[0]:
+        raise RuntimeError("Expected exactly one matching Grist organization")
+    return matches[0]
+
+
 def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
+    team_site = "integration"
     config = {
         "GRIST_API_KEY": api_key,
         "GRIST_SELF_MANAGED": "Y",
@@ -124,7 +139,7 @@ def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
         "GRIST_SERVER_PROTOCOL": "http://",
         "GRIST_API_SERVER": "localhost",
         "GRIST_API_ROOT": "api",
-        "GRIST_TEAM_SITE": "integration",
+        "GRIST_TEAM_SITE": team_site,
         "GRIST_WORKSPACE_ID": "0",
         "GRIST_DOC_ID": "bootstrap",
         "GRIST_RAISE_ERROR": "Y",
@@ -132,11 +147,7 @@ def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
     }
     api = GristApi(config=config)
     organizations = _expect_success("list organizations", api.list_team_sites())
-    if not isinstance(organizations, list) or len(organizations) != 1:
-        raise RuntimeError("Expected exactly one Grist organization")
-    organization = organizations[0]
-    if not isinstance(organization, dict) or "id" not in organization:
-        raise RuntimeError("Grist returned an invalid organization")
+    organization = _select_organization(organizations, team_site)
     org_id = organization["id"]
     workspace_id = _expect_success("create workspace", api.add_workspace("Integration Workspace"))
     doc_id = _expect_success(
