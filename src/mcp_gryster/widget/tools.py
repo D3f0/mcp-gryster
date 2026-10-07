@@ -147,8 +147,13 @@ def register_widget_tools(
         name="widget-project-file",
         mime_type="text/plain",
     )
-    def project_file_resource(project_id: str, path: str) -> bytes:
-        return _read_authored_file(store, project_id, path)
+    def project_file_resource(project_id: str, path: str) -> str:
+        try:
+            return _read_authored_file(store, project_id, path).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise McpGrysterError(
+                "VALIDATION_FAILED", "Widget project file is not valid UTF-8"
+            ) from exc
 
     @mcp.resource(
         "widget://projects/{project_id}/validation{?fixture_id}",

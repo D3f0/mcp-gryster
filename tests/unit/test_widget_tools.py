@@ -66,7 +66,11 @@ async def test_widget_mcp_surface_completes_project_fixture_validate_preview_pac
                 "files": [
                     {
                         "path": "src/index.html",
-                        "content": "<!doctype html><script src='app.js'></script>",
+                        "content": (
+                            "<!doctype html>"
+                            "<script src='https://docs.getgrist.com/grist-plugin-api.js'></script>"
+                            "<script src='app.js'></script>"
+                        ),
                     },
                     {"path": "src/app.js", "content": "grist.ready();\n"},
                 ],
@@ -209,6 +213,7 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
         assert project_data["files"] == ["src/index.html", "widget.json"]
         authored = await client.read_resource("widget://projects/resource-widget/files/src/index.html")
         assert "<!doctype html>" in authored[0].text
+        assert authored[0].mimeType == "text/plain"
 
         for uri in (
             "widget://projects/resource-widget/files/fixtures/secret.json",
