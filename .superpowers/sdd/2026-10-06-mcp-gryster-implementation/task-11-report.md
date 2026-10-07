@@ -88,3 +88,20 @@ Observed static checks:
 - Narrowed the MCP project resource to `TextResourceContents` before reading `.text`.
 - Corrected async fixture annotations to `AsyncIterator[Client[Any]]`.
 - Controller reported all five integration tests and Ruff passing before these typing fixes; per instruction, no checks were run afterward.
+
+## Docker Lifecycle Fix Round 1
+
+- Added focused lifecycle tests for parsing Docker-assigned loopback ports and detecting failed pytest phases.
+- Replaced the free-port probe with Docker's atomic ephemeral host-port allocation, then derive `grist_base_url` from `docker compose port`.
+- Removed the external dynamic port from Grist's container configuration; the container uses its stable same-origin localhost URL.
+- Added pytest phase reports and per-test failure diagnostics, including sanitized Compose status and the last 200 log lines for setup, call, and teardown failures.
+- Bootstrap and published-port setup failures now emit the same diagnostics before failing; Compose teardown failures do not replace an already active test/session failure.
+- Per controller instruction, no checks or Docker commands were run after these changes.
+
+## Docker Lifecycle Fix Round 2
+
+- Added focused coverage proving successful teardown is silent and always invokes `docker compose down --volumes --remove-orphans`.
+- Centralized teardown handling so Compose command errors still trigger sanitized diagnostics, preserve an existing test/session failure, and always clear lifecycle state and the credentials file.
+- Made diagnostic collection tolerate unavailable Compose status/log commands and hardened malformed credential-file handling.
+- Setup and teardown report failures now emit diagnostics through the pytest report hook; ordinary successful tests do not.
+- Per controller instruction, no Docker, test, lint, mypy, formatter, or build commands were run.

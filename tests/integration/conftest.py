@@ -4,7 +4,6 @@ import json
 import os
 import re
 import shutil
-import socket
 import subprocess
 import sys
 import uuid
@@ -25,22 +24,18 @@ _KEY_PATTERNS = (
     re.compile(r"(?i)((?:api[-_ ]?key|token)\s*[=:]\s*)[^\s,;\]\}\"']+"),
     re.compile(r'(?i)("(?:api_key|key|token)"\s*:\s*")[^"]+(\")'),
 )
+_SESSION_FAILED = False
+_ACTIVE_PROJECT: str | None = None
+_SECRET_FILE: Path | None = None
 
 
-def _available_port() -> int:
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
-        return int(listener.getsockname()[1])
 
 
 def _run_compose(
     project: str,
-    port: int,
     *arguments: str,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    environment = os.environ.copy()
-    environment["GRIST_PORT"] = str(port)
     return subprocess.run(
         [
             "docker",
@@ -52,12 +47,22 @@ def _run_compose(
             *arguments,
         ],
         cwd=_REPO_ROOT,
-        env=environment,
+        env=os.environ.copy(),
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         check=check,
     )
+
+
+def _published_base_url(result: Any) -> str:
+    lines = result.stdout.strip().splitlines()
+    if result.returncode != 0 or len(lines) != 1:
+        raise RuntimeError("Docker Compose did not publish a usable Grist port")
+    match = re.fullmatch(r"127\.0\.0\.1:(\d{1,5})", lines[0])
+    if match is None or not 1 <= int(match.group(1)) <= 65_535:
+        raise RuntimeError("Docker Compose did not publish a usable Grist port")
+    return f"http://{lines[0]}"
 
 
 def _sanitize(text: str, secrets: tuple[str, ...] = ()) -> str:
@@ -73,20 +78,28 @@ def _sanitize(text: str, secrets: tuple[str, ...] = ()) -> str:
     return sanitized
 
 def _read_secrets(path: Path) -> tuple[str, ...]:
+    fallback = tuple(filter(None, (os.environ.get("GRIST_API_KEY"),)))
     try:
         payload = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
-        return tuple(filter(None, (os.environ.get("GRIST_API_KEY"),)))
+        return fallback
+    if not isinstance(payload, dict):
+        return fallback
     return tuple(
         value for key, value in payload.items() if "key" in key.lower() and isinstance(value, str)
     )
 
 
-def _print_compose_diagnostics(project: str, port: int, secrets: tuple[str, ...]) -> None:
-    status = _run_compose(project, port, "ps", "--all", check=False).stdout
-    logs = _run_compose(
-        project, port, "logs", "--no-color", "--tail", "200", check=False
-    ).stdout
+def _diagnostic_output(project: str, *arguments: str) -> str:
+    try:
+        return _run_compose(project, *arguments, check=False).stdout
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"<unavailable: {type(exc).__name__}>\n"
+
+
+def _print_compose_diagnostics(project: str, secrets: tuple[str, ...]) -> None:
+    status = _diagnostic_output(project, "ps", "--all")
+    logs = _diagnostic_output(project, "logs", "--no-color", "--tail", "200")
     print(
         "\nGrist Compose status:\n"
         + _sanitize(status, secrets)
@@ -94,6 +107,31 @@ def _print_compose_diagnostics(project: str, port: int, secrets: tuple[str, ...]
         + _sanitize(logs, secrets),
         file=sys.stderr,
     )
+
+
+def _node_failed(node: Any) -> bool:
+    return any(
+        bool(getattr(getattr(node, f"rep_{phase}", None), "failed", False))
+        for phase in ("setup", "call", "teardown")
+    )
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[Any]
+) -> Iterator[None]:
+    global _SESSION_FAILED
+    outcome = yield
+    report = cast(Any, outcome).get_result()
+    setattr(item, f"rep_{report.when}", report)
+    _SESSION_FAILED = _SESSION_FAILED or bool(report.failed)
+    if (
+        report.failed
+        and report.when in {"setup", "teardown"}
+        and _ACTIVE_PROJECT is not None
+    ):
+        secrets = _read_secrets(_SECRET_FILE) if _SECRET_FILE is not None else ()
+        _print_compose_diagnostics(_ACTIVE_PROJECT, secrets)
 
 
 def _docker_available() -> bool:
@@ -111,6 +149,31 @@ def _docker_available() -> bool:
         return False
     return True
 
+def _stop_compose(
+    project: str, secrets: tuple[str, ...], *, preserve_failure: bool
+) -> None:
+    try:
+        result = _run_compose(
+            project,
+            "down",
+            "--volumes",
+            "--remove-orphans",
+            check=False,
+        )
+        teardown_failed = result.returncode != 0
+    except (OSError, subprocess.SubprocessError):
+        teardown_failed = True
+
+    if not teardown_failed:
+        return
+
+    _print_compose_diagnostics(project, secrets)
+    if preserve_failure:
+        print("Docker Compose teardown failed", file=sys.stderr)
+    else:
+        pytest.fail("Docker Compose teardown failed")
+
+
 
 @pytest.fixture(scope="session")
 def grist_secret_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -118,7 +181,8 @@ def grist_secret_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def grist_base_url(grist_secret_file: Path) -> Iterator[str]:
+def compose_project(grist_secret_file: Path) -> Iterator[str]:
+    global _ACTIVE_PROJECT, _SECRET_FILE
     if not _docker_available():
         message = "Docker is required for Grist integration tests"
         if os.environ.get("CI"):
@@ -126,36 +190,56 @@ def grist_base_url(grist_secret_file: Path) -> Iterator[str]:
         pytest.skip(message)
 
     project = f"mcp-gryster-{os.getpid()}-{uuid.uuid4().hex[:8]}"
-    port = _available_port()
-    base_url = f"http://127.0.0.1:{port}"
-    secret_file = grist_secret_file
     failed = False
+    _ACTIVE_PROJECT = project
+    _SECRET_FILE = grist_secret_file
     try:
-        _run_compose(project, port, "up", "--detach", "--wait")
-        yield base_url
+        _run_compose(project, "up", "--detach", "--wait")
+        yield project
     except BaseException:
         failed = True
-        secrets = _read_secrets(secret_file)
-        _print_compose_diagnostics(project, port, secrets)
+        _print_compose_diagnostics(project, _read_secrets(grist_secret_file))
         raise
     finally:
-        down = _run_compose(
-            project,
-            port,
-            "down",
-            "--volumes",
-            "--remove-orphans",
-            check=False,
-        )
-        if down.returncode != 0 and not failed:
-            secrets = _read_secrets(secret_file)
-            _print_compose_diagnostics(project, port, secrets)
-            pytest.fail("Docker Compose teardown failed")
-        secret_file.unlink(missing_ok=True)
+        try:
+            _stop_compose(
+                project,
+                _read_secrets(grist_secret_file),
+                preserve_failure=failed or _SESSION_FAILED,
+            )
+        finally:
+            grist_secret_file.unlink(missing_ok=True)
+            _ACTIVE_PROJECT = None
+            _SECRET_FILE = None
 
 
 @pytest.fixture(scope="session")
-def grist_bootstrap(grist_base_url: str, grist_secret_file: Path) -> dict[str, Any]:
+def grist_base_url(compose_project: str) -> str:
+    result = _run_compose(compose_project, "port", "grist", "8484", check=False)
+    try:
+        return _published_base_url(result)
+    except RuntimeError:
+        _print_compose_diagnostics(compose_project, ())
+        raise
+
+
+@pytest.fixture(autouse=True)
+def compose_failure_diagnostics(
+    request: pytest.FixtureRequest,
+    compose_project: str,
+    grist_secret_file: Path,
+) -> Iterator[None]:
+    yield
+    if _node_failed(request.node):
+        _print_compose_diagnostics(compose_project, _read_secrets(grist_secret_file))
+
+
+@pytest.fixture(scope="session")
+def grist_bootstrap(
+    grist_base_url: str,
+    grist_secret_file: Path,
+    compose_project: str,
+) -> dict[str, Any]:
     output = grist_secret_file
     environment = os.environ.copy()
     result = subprocess.run(
@@ -178,12 +262,14 @@ def grist_bootstrap(grist_base_url: str, grist_secret_file: Path) -> dict[str, A
         check=False,
     )
     if result.returncode != 0:
+        _print_compose_diagnostics(compose_project, _read_secrets(grist_secret_file))
         pytest.fail("Grist bootstrap failed:\n" + _sanitize(result.stdout))
     assert output.stat().st_mode & 0o777 == 0o600
     raw_payload = json.loads(output.read_text())
     if not isinstance(raw_payload, dict) or any(
         not isinstance(key, str) for key in raw_payload
     ):
+        _print_compose_diagnostics(compose_project, _read_secrets(grist_secret_file))
         pytest.fail("Grist bootstrap returned invalid data")
     return cast(dict[str, Any], raw_payload)
 
