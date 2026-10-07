@@ -23,6 +23,7 @@ _SENSITIVE_OUTPUT = (
     re.compile(r"(?i)((?:api[-_ ]?key|token)\s*[=:]\s*)[^\s,;\]\}\"']+"),
     re.compile(r'(?i)("(?:api_key|key|token)"\s*:\s*")[^"]+(\")'),
 )
+_API_KEY_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _TRANSIENT_HTTP_STATUSES = frozenset({429, 502, 503, 504})
 _RETRY_INTERVAL = 0.5
 
@@ -96,8 +97,13 @@ def _create_api_key(
         method="POST",
     )
     with _open_when_ready(opener, request, deadline, retry_interval) as response:
-        payload = json.load(response)
-    if not isinstance(payload, str) or not payload:
+        payload = response.read().decode("utf-8").strip()
+    if payload.startswith('"'):
+        decoded = json.loads(payload)
+        if not isinstance(decoded, str):
+            raise RuntimeError("Grist returned an invalid API key")
+        payload = decoded
+    if _API_KEY_PATTERN.fullmatch(payload) is None:
         raise RuntimeError("Grist returned an invalid API key")
     return payload
 

@@ -55,3 +55,10 @@ Observed static checks:
 - Added `GRIST_IN_SERVICE: "true"` to the integration Compose environment so Grist starts in open single-user service mode instead of requiring the Quick setup flow at `/boot`.
 - No focused unit expectation required updating; the existing bootstrap tests cover HTTP behavior rather than Compose configuration.
 - Per assignment, Docker and tests were not run.
+
+## API Key Response Follow-up
+
+- Updated API-key rotation parsing for Grist 1.7.19's actual response: a bare 40-character hexadecimal key sent as `text/html`, rather than a JSON document.
+- Retained compatibility with quoted JSON string responses and reject empty, malformed, or non-key payloads without including their contents in errors.
+- Added regression coverage for both bare-text and JSON-string response forms.
+- Per controller instruction, no checks were run for this follow-up.

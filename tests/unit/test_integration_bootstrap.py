@@ -115,13 +115,33 @@ def test_create_api_key_retries_transient_responses_and_keeps_session_cookie(
     scenarios["/api/profile/apikey"] = [
         (429, {}, b"busy"),
         (504, {}, b"busy"),
-        (200, {"Content-Type": "application/json"}, json.dumps("secret-key").encode()),
+        (200, {"Content-Type": "text/html; charset=utf-8"}, b"a" * 40),
     ]
 
-    assert _create_api_key(base_url, timeout=1, retry_interval=0.01) == "secret-key"
+    assert _create_api_key(base_url, timeout=1, retry_interval=0.01) == "a" * 40
     assert counts == {"/": 2, "/test/login": 2, "/api/profile/apikey": 3}
     assert requests[2][1] == "session=ready"
     assert set((requests[-1][1] or "").split("; ")) == {"session=ready", "auth=logged-in"}
+
+
+def test_create_api_key_accepts_json_string_for_compatibility(
+    bootstrap_server: tuple[
+        str,
+        dict[str, int],
+        dict[str, list[tuple[int, dict[str, str], bytes]]],
+        list[tuple[str, str | None]],
+    ],
+) -> None:
+    base_url, _counts, scenarios, _requests = bootstrap_server
+    scenarios["/"] = [(200, {"Set-Cookie": "session=ready; Path=/"}, b"ok")]
+    scenarios["/test/login"] = [
+        (200, {"Set-Cookie": "auth=logged-in; Path=/"}, b"ok")
+    ]
+    scenarios["/api/profile/apikey"] = [
+        (200, {"Content-Type": "application/json"}, json.dumps("b" * 40).encode())
+    ]
+
+    assert _create_api_key(base_url, timeout=1, retry_interval=0.01) == "b" * 40
 
 
 def test_create_api_key_does_not_retry_permanent_client_errors(
