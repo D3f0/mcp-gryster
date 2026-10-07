@@ -45,3 +45,15 @@ The MCP surface exposes task-oriented `widget.projects.*`, `widget.fixtures.*`,
 reports, generated distribution artifacts, and the checked-in Grist method
 registry. Packages contain only `src/` files and produce a canonical manifest
 whose public URL uses the project's configured entrypoint.
+
+## Integration tests
+
+The integration suite starts the digest-pinned Grist 1.7.19 image in an isolated
+Docker Compose project, provisions its test data, and removes containers and volumes
+afterward:
+
+```bash
+uv run pytest -m integration -v
+```
+
+Docker must be available. Local runs skip when it is unavailable; CI runs fail.
