@@ -11,3 +11,8 @@
 ## Verification
 
 Per assignment instruction, no tests, builds, lint, mypy, installs, formatter, or uvx commands were run. `git diff --check` completed successfully.
+
+## Controller Fix
+
+- Normalized module import-to-constant spacing in both new tests for Ruff I001 compliance.
+- Per controller instruction, no checks were run for this mechanical correction.
