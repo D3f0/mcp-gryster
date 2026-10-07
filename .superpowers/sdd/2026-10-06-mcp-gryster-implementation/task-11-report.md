@@ -43,3 +43,9 @@ Observed static checks:
 - Set the public `APP_HOME_URL` to the host-reachable loopback URL and `APP_HOME_INTERNAL_URL` to the container-local URL, with same-origin serving enabled. This keeps login redirects and cookies on the caller's origin without asking the container to reach the host-published port.
 - Added focused unit coverage for the readiness query, transient status handling, cookie retention, and permanent-client-error behavior.
 - Verification: `uv run pytest tests/unit/test_integration_bootstrap.py -q` passed (3 tests). Per assignment, Docker and project-wide checks were not run.
+
+## Static Analysis Follow-up
+
+- Replaced the bootstrap's broad exception handler with the concrete network, filesystem, payload, runtime, Requests, and Pygrister exception families expected from its operations.
+- Added structural validation for organization and table API payloads before indexing, resolving strict typing without suppressions.
+- Per controller instruction, no checks were run for this follow-up.

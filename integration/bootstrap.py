@@ -14,6 +14,8 @@ from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, OpenerDirector, Request, build_opener, urlopen
 
 from pygrister.api import GristApi  # type: ignore[import-untyped]
+from pygrister.exceptions import GristApiException  # type: ignore[import-untyped]
+from requests.exceptions import RequestException
 
 _EMAIL = "integration@example.test"
 _SENSITIVE_OUTPUT = (
@@ -127,6 +129,8 @@ def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
     if not isinstance(organizations, list) or len(organizations) != 1:
         raise RuntimeError("Expected exactly one Grist organization")
     organization = organizations[0]
+    if not isinstance(organization, dict) or "id" not in organization:
+        raise RuntimeError("Grist returned an invalid organization")
     org_id = organization["id"]
     workspace_id = _expect_success("create workspace", api.add_workspace("Integration Workspace"))
     doc_id = _expect_success(
@@ -135,7 +139,7 @@ def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
     api.update_config(
         {"GRIST_WORKSPACE_ID": str(workspace_id), "GRIST_DOC_ID": str(doc_id)}
     )
-    table_id = _expect_success(
+    tables = _expect_success(
         "create People table",
         api.add_tables(
             [
@@ -153,7 +157,10 @@ def _create_dataset(base_url: str, api_key: str) -> dict[str, object]:
                 }
             ]
         ),
-    )[0]
+    )
+    if not isinstance(tables, list) or not tables:
+        raise RuntimeError("Grist returned an invalid table list")
+    table_id = tables[0]
     _expect_success(
         "seed People records",
         api.add_records(
@@ -195,7 +202,17 @@ def main() -> int:
         with os.fdopen(descriptor, "w") as stream:
             json.dump({"api_key": api_key, **ids}, stream)
         os.chmod(args.output, 0o600)
-    except Exception as exc:
+    except (
+        GristApiException,
+        HTTPError,
+        OSError,
+        RequestException,
+        RuntimeError,
+        TimeoutError,
+        TypeError,
+        URLError,
+        ValueError,
+    ) as exc:
         print(
             f"bootstrap failed: {type(exc).__name__}: {_sanitize_error(exc)}",
             file=sys.stderr,
