@@ -49,3 +49,9 @@ Observed static checks:
 - Replaced the bootstrap's broad exception handler with the concrete network, filesystem, payload, runtime, Requests, and Pygrister exception families expected from its operations.
 - Added structural validation for organization and table API payloads before indexing, resolving strict typing without suppressions.
 - Per controller instruction, no checks were run for this follow-up.
+
+## Quick Setup Follow-up
+
+- Added `GRIST_IN_SERVICE: "true"` to the integration Compose environment so Grist starts in open single-user service mode instead of requiring the Quick setup flow at `/boot`.
+- No focused unit expectation required updating; the existing bootstrap tests cover HTTP behavior rather than Compose configuration.
+- Per assignment, Docker and tests were not run.
