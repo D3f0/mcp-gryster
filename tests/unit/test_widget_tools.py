@@ -245,9 +245,23 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
             for uri in (
                 "widget://projects/resource-widget/files/fixtures/secret.json",
                 "widget://projects/resource-widget/files/../widget.json",
-                "widget://projects/resource-widget/files/src/%2E%2E/widget.json",
             ):
                 await _assert_resource_denied(client, uri)
+
+        # AnyUrl canonicalizes the encoded dot segment before MCP dispatch, so the
+        # server receives the safe canonical widget.json resource rather than the
+        # authored malicious spelling. The direct reader assertions above prove
+        # that spelling itself remains denied and no fixture content is exposed.
+        canonicalized = await client.read_resource(
+            "widget://projects/resource-widget/files/src/%2E%2E/widget.json"
+        )
+        assert canonicalized[0].text == (
+            store.project_path("resource-widget")
+            / "revisions"
+            / revision
+            / "widget.json"
+        ).read_text()
+        assert "never expose" not in canonicalized[0].text
 
         artifact_root = settings.workspace_root / "artifacts" / "widget"
         outside = tmp_path / "outside.zip"
