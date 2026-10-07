@@ -16,7 +16,7 @@ async def _call(client: Client[Any], name: str, arguments: dict[str, Any]) -> di
     result = await client.call_tool(name, arguments)
     assert not result.is_error
     assert result.structured_content is not None
-    return result.structured_content["result"]
+    return result.structured_content
 
 
 @pytest.mark.asyncio
