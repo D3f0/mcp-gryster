@@ -105,3 +105,8 @@ Observed static checks:
 - Made diagnostic collection tolerate unavailable Compose status/log commands and hardened malformed credential-file handling.
 - Setup and teardown report failures now emit diagnostics through the pytest report hook; ordinary successful tests do not.
 - Per controller instruction, no Docker, test, lint, mypy, formatter, or build commands were run.
+
+## Lifecycle Unit Collection Fix
+
+- Added the root `tests` package marker so lifecycle tests can import `tests.integration.conftest` while unit and integration modules remain separately namespaced.
+- Per controller instruction, no checks were run.
