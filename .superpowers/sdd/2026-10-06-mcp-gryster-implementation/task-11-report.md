@@ -30,3 +30,8 @@ Observed static checks:
 
 - Runtime behavior against the pulled Grist image remains for the controller's prescribed `uv run pytest -m integration -v` run.
 - The integration suite intentionally enables Grist's unauthenticated test-login endpoint only inside the ephemeral, loopback-bound test container.
+
+## Controller Collection Fix
+
+- Added package markers to `tests/unit` and `tests/integration` so pytest collection keeps duplicate test-module basenames in distinct import namespaces.
+- Per controller instruction, no checks were run for this fix.
