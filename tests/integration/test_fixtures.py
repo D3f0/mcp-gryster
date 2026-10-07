@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from fastmcp import Client
+from mcp.types import TextResourceContents
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -53,6 +54,7 @@ async def test_fixture_captures_only_explicit_columns_and_redacts_sensitive_valu
     )
 
     project = await client.read_resource(f"widget://projects/{project_id}")
+    assert isinstance(project[0], TextResourceContents)
     project_data = json.loads(project[0].text)
     assert project_data["files"] == ["src/index.html", "widget.json"]
 

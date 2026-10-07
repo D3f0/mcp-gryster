@@ -80,3 +80,11 @@ Observed static checks:
 
 - Changed the invalid organization-list type failure to `TypeError`, matching the validation semantics and the existing explicit bootstrap error handling.
 - Per controller instruction, no checks were run for this follow-up.
+
+## Strict Typing Fix
+
+- Added and packaged the standard PEP 561 `py.typed` marker for `mcp_gryster`.
+- Narrowed decoded bootstrap keys and bootstrap result payloads before returning typed values.
+- Narrowed the MCP project resource to `TextResourceContents` before reading `.text`.
+- Corrected async fixture annotations to `AsyncIterator[Client[Any]]`.
+- Controller reported all five integration tests and Ruff passing before these typing fixes; per instruction, no checks were run afterward.

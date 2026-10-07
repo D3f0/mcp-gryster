@@ -102,10 +102,12 @@ def _create_api_key(
         decoded = json.loads(payload)
         if not isinstance(decoded, str):
             raise RuntimeError("Grist returned an invalid API key")
-        payload = decoded
-    if _API_KEY_PATTERN.fullmatch(payload) is None:
+        key = decoded
+    else:
+        key = payload
+    if _API_KEY_PATTERN.fullmatch(key) is None:
         raise RuntimeError("Grist returned an invalid API key")
-    return payload
+    return key
 
 
 def _expect_success(operation: str, response: tuple[int, object]) -> object:

@@ -8,9 +8,9 @@ import socket
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastmcp import Client
@@ -180,8 +180,12 @@ def grist_bootstrap(grist_base_url: str, grist_secret_file: Path) -> dict[str, A
     if result.returncode != 0:
         pytest.fail("Grist bootstrap failed:\n" + _sanitize(result.stdout))
     assert output.stat().st_mode & 0o777 == 0o600
-    payload = json.loads(output.read_text())
-    return payload
+    raw_payload = json.loads(output.read_text())
+    if not isinstance(raw_payload, dict) or any(
+        not isinstance(key, str) for key in raw_payload
+    ):
+        pytest.fail("Grist bootstrap returned invalid data")
+    return cast(dict[str, Any], raw_payload)
 
 
 @pytest.fixture(scope="session")
@@ -249,7 +253,9 @@ def integration_settings(
 
 
 @pytest.fixture
-async def integration_mcp_client(integration_settings: Settings) -> Iterator[Client[Any]]:
+async def integration_mcp_client(
+    integration_settings: Settings,
+) -> AsyncIterator[Client[Any]]:
     async with Client(create_app(integration_settings)) as client:
         yield client
 
@@ -257,7 +263,7 @@ async def integration_mcp_client(integration_settings: Settings) -> Iterator[Cli
 @pytest.fixture
 async def integration_read_mcp_client(
     grist_base_url: str, grist_api_key: str, grist_ids: dict[str, Any]
-) -> Iterator[Client[Any]]:
+) -> AsyncIterator[Client[Any]]:
     settings = _settings(
         base_url=grist_base_url,
         api_key=grist_api_key,
