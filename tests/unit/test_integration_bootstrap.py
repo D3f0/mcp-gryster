@@ -44,8 +44,13 @@ class _BootstrapHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         for name, value in headers.items():
             self.send_header(name, value)
+        if "Content-Length" not in headers:
+            self.send_header("Content-Length", str(len(body)))
+        if "Connection" not in headers:
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
+        self.wfile.flush()
 
 
 @pytest.fixture
@@ -66,7 +71,8 @@ def bootstrap_server() -> Iterator[
         {"counts": counts, "scenarios": scenarios, "requests": requests},
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = threading.Thread(target=server.serve_forever)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
         yield f"http://127.0.0.1:{server.server_port}", counts, scenarios, requests
