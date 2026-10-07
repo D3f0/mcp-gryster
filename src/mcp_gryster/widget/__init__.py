@@ -35,8 +35,8 @@ from mcp_gryster.widget.validation import (
 )
 
 __all__ = [
-    "ArtifactReference",
     "ALLOWED_GRIST_COLUMN_TYPES",
+    "ArtifactReference",
     "FileUpdate",
     "FixtureColumn",
     "FixtureManager",

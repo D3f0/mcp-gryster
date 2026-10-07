@@ -84,3 +84,8 @@ Observed smoke checks:
 - Kept the no-`dir_fd` compatibility path private to `ArtifactStore`, with explicit containment and symlink-component rejection tests.
 - Added focused coverage for content-keyed manifests, lock scope, path-free results, descriptor-safe reads, portable fallback containment, and resource delegation.
 - Per assignment, no checks were executed in this fix round.
+
+## Export Ordering Cleanup
+
+- Sorted `mcp_gryster.widget.__all__` alphabetically so `ALLOWED_GRIST_COLUMN_TYPES` precedes `ArtifactReference`.
+- Per assignment, no tests, lint, mypy, build, or formatter commands were run in this cleanup round.
