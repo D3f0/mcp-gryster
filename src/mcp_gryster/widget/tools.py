@@ -82,19 +82,21 @@ def register_widget_tools(
         include_attachment_metadata: bool = False,
         team_id: str = "",
     ) -> FixtureSummary:
-        request = GristFixtureRequest(
-            project_id=project_id,
-            expected_revision=expected_revision,
-            fixture_id=fixture_id,
-            doc_id=doc_id,
-            table_id=table_id,
-            columns=columns,
-            selected_record_id=selected_record_id,
-            mappings=mappings or {},
-            options=options or {},
-            access_level=access_level,
-            include_attachment_metadata=include_attachment_metadata,
-            team_id=team_id,
+        request = GristFixtureRequest.model_validate(
+            {
+                "project_id": project_id,
+                "expected_revision": expected_revision,
+                "fixture_id": fixture_id,
+                "doc_id": doc_id,
+                "table_id": table_id,
+                "columns": columns,
+                "selected_record_id": selected_record_id,
+                "mappings": mappings or {},
+                "options": options or {},
+                "access_level": access_level,
+                "include_attachment_metadata": include_attachment_metadata,
+                "team_id": team_id,
+            }
         )
         return await fixtures.create_from_grist(request)
 

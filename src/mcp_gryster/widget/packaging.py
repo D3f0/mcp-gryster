@@ -7,7 +7,7 @@ import json
 import secrets
 import shutil
 from pathlib import Path
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import SplitResult, quote, urlsplit, urlunsplit
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -172,7 +172,7 @@ def _manifest(metadata: WidgetMetadata, project_id: str, public_base_url: str) -
     return (json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
 
 
-def _public_base_url(value: str):
+def _public_base_url(value: str) -> SplitResult:
     parsed = urlsplit(value)
     if (
         parsed.scheme not in {"http", "https"}
