@@ -17,9 +17,12 @@ from mcp_gryster.grist.adapter import GristAdapter
 from mcp_gryster.grist.policy import Policy
 from mcp_gryster.grist.registry import load_registry
 from mcp_gryster.grist.tools import register_grist_tools
+from mcp_gryster.widget.fixtures import FixtureManager
+from mcp_gryster.widget.packaging import WidgetPackager
 from mcp_gryster.widget.preview import PreviewManager
 from mcp_gryster.widget.projects import ProjectStore
-from mcp_gryster.widget.validation import PreviewEvidenceStore
+from mcp_gryster.widget.tools import register_widget_tools
+from mcp_gryster.widget.validation import PreviewEvidenceStore, WidgetValidator
 
 
 def create_app(settings: Settings) -> FastMCP:
@@ -43,6 +46,14 @@ def create_app(settings: Settings) -> FastMCP:
     project_store = ProjectStore(settings)
     preview_evidence = PreviewEvidenceStore()
     preview_manager = PreviewManager(project_store, preview_evidence)
+    fixture_manager = FixtureManager(project_store, adapter, settings)
+    widget_validator = WidgetValidator(project_store, preview_evidence)
+    widget_packager = WidgetPackager(
+        project_store,
+        fixture_manager,
+        widget_validator,
+        artifacts,
+    )
 
     @asynccontextmanager
     async def lifespan(_server: FastMCP) -> AsyncIterator[dict[str, Any]]:
@@ -57,6 +68,9 @@ def create_app(settings: Settings) -> FastMCP:
                 "project_store": project_store,
                 "preview_evidence": preview_evidence,
                 "preview_manager": preview_manager,
+                "fixture_manager": fixture_manager,
+                "widget_validator": widget_validator,
+                "widget_packager": widget_packager,
             }
         finally:
             await preview_manager.stop_all()
@@ -69,6 +83,15 @@ def create_app(settings: Settings) -> FastMCP:
         mask_error_details=True,
     )
     register_grist_tools(app, adapter)
+    register_widget_tools(
+        app,
+        store=project_store,
+        fixtures=fixture_manager,
+        validator=widget_validator,
+        previews=preview_manager,
+        packager=widget_packager,
+        registry=registry,
+    )
     return app
 
 

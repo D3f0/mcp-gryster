@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 import stat
@@ -21,6 +22,7 @@ class Artifact(BaseModel):
     name: str = Field(min_length=1)
     path: Path
     size_bytes: int = Field(ge=0)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class ArtifactStore:
@@ -86,7 +88,13 @@ class ArtifactStore:
                 finally:
                     os.close(parent_fd)
 
-        return Artifact(kind=kind, name=name, path=target, size_bytes=len(data))
+        return Artifact(
+            kind=kind,
+            name=name,
+            path=target,
+            size_bytes=len(data),
+            sha256=hashlib.sha256(data).hexdigest(),
+        )
 
     def _put_bytes_portable(
         self, kind: str, name: str, relative: Path, data: bytes
@@ -128,7 +136,13 @@ class ArtifactStore:
                 temporary.unlink(missing_ok=True)
             except OSError:
                 pass
-        return Artifact(kind=kind, name=name, path=target, size_bytes=len(data))
+        return Artifact(
+            kind=kind,
+            name=name,
+            path=target,
+            size_bytes=len(data),
+            sha256=hashlib.sha256(data).hexdigest(),
+        )
 
 
 def _supports_dir_fd() -> bool:

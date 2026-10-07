@@ -16,6 +16,7 @@ from mcp_gryster.widget.models import (
     WidgetColumn,
     WidgetMetadata,
 )
+from mcp_gryster.widget.packaging import PackageResult, WidgetPackager
 from mcp_gryster.widget.preview import (
     PreviewManager,
     PreviewSession,
@@ -23,6 +24,7 @@ from mcp_gryster.widget.preview import (
     StopPreviewResult,
 )
 from mcp_gryster.widget.projects import ProjectStore
+from mcp_gryster.widget.tools import register_widget_tools
 from mcp_gryster.widget.validation import (
     ALLOWED_GRIST_COLUMN_TYPES,
     PreviewEvidence,
@@ -42,6 +44,7 @@ __all__ = [
     "FixtureSource",
     "FixtureSummary",
     "GristFixtureRequest",
+    "PackageResult",
     "PreviewEvidence",
     "PreviewEvidenceStore",
     "PreviewFixture",
@@ -57,5 +60,7 @@ __all__ = [
     "WidgetAuthor",
     "WidgetColumn",
     "WidgetMetadata",
+    "WidgetPackager",
     "WidgetValidator",
+    "register_widget_tools",
 ]

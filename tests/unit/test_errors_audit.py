@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -143,6 +144,7 @@ def test_artifact_store_writes_bytes_atomically(tmp_path: Path) -> None:
     assert artifact.name == "index.html"
     assert artifact.size_bytes == 4
     assert artifact.path.read_bytes() == b"safe"
+    assert artifact.sha256 == hashlib.sha256(b"safe").hexdigest()
     assert artifact.path.resolve().is_relative_to(tmp_path.resolve())
 
 

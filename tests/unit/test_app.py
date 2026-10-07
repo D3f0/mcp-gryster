@@ -12,9 +12,11 @@ from mcp_gryster.config import Settings, SettingsError
 from mcp_gryster.grist.adapter import GristAdapter
 from mcp_gryster.grist.policy import Policy
 from mcp_gryster.grist.registry import MethodRegistry
+from mcp_gryster.widget.fixtures import FixtureManager
+from mcp_gryster.widget.packaging import WidgetPackager
 from mcp_gryster.widget.preview import PreviewManager
 from mcp_gryster.widget.projects import ProjectStore
-from mcp_gryster.widget.validation import PreviewEvidenceStore
+from mcp_gryster.widget.validation import PreviewEvidenceStore, WidgetValidator
 
 
 @pytest.mark.asyncio
@@ -37,6 +39,9 @@ async def test_create_app_configures_strict_masked_server_and_lifespan_component
         assert isinstance(context["project_store"], ProjectStore)
         assert isinstance(context["preview_evidence"], PreviewEvidenceStore)
         assert isinstance(context["preview_manager"], PreviewManager)
+        assert isinstance(context["fixture_manager"], FixtureManager)
+        assert isinstance(context["widget_validator"], WidgetValidator)
+        assert isinstance(context["widget_packager"], WidgetPackager)
         preview_manager = context["preview_manager"]
         preview_manager.stop_all = AsyncMock()
 
@@ -45,7 +50,9 @@ async def test_create_app_configures_strict_masked_server_and_lifespan_component
 
     async with Client(app) as client:
         tools = await client.list_tools()
-    assert "grist.call" in {tool.name for tool in tools}
+    names = {tool.name for tool in tools}
+    assert "grist.call" in names
+    assert "widget.package" in names
 
 
 def test_create_app_refuses_non_loopback_even_with_configured_bearer_token(
