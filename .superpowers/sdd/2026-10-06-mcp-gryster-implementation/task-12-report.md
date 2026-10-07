@@ -16,3 +16,9 @@ Per assignment instruction, no tests, builds, lint, mypy, installs, formatter, o
 
 - Normalized module import-to-constant spacing in both new tests for Ruff I001 compliance.
 - Per controller instruction, no checks were run for this mechanical correction.
+
+## Controller Distribution Fix
+
+- Changed the clean-environment wheel install test to resolve dependencies normally instead of depending on incidental contents of the developer's global uv cache.
+- Kept the CI distribution cache empty while allowing `uv sync` and wheel-based `uvx` invocations to populate and resolve it from scratch; removed offline flags from both bounded uvx smoke paths.
+- Per controller instruction, no checks were run for this correction.

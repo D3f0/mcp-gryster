@@ -19,7 +19,7 @@ async def smoke(wheel: Path, timeout: float) -> None:
         environment["MCP_GRYSTER_WORKSPACE"] = workspace
         transport = StdioTransport(
             command="uvx",
-            args=["--offline", "--from", str(wheel.resolve()), "mcp-gryster"],
+            args=["--from", str(wheel.resolve()), "mcp-gryster"],
             env=environment,
             keep_alive=False,
         )

@@ -49,7 +49,7 @@ jobs:
       - name: Verify clean uvx installation and CLI
         run: |
           wheel=$(printf '%s\n' dist/mcp_gryster-*.whl)
-          timeout 60s uvx --offline --from "$wheel" mcp-gryster --help
+          timeout 60s uvx --from "$wheel" mcp-gryster --help
       - name: Initialize server and list tools over STDIO
         run: |
           wheel=$(printf '%s\n' dist/mcp_gryster-*.whl)

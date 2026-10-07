@@ -49,7 +49,7 @@ def test_wheel_metadata_entrypoint_and_package_data(wheel: Path) -> None:
     assert not any(any(part in name for part in forbidden) for name in names)
 
 
-def test_wheel_installs_offline_in_clean_environment(wheel: Path, tmp_path: Path) -> None:
+def test_wheel_installs_in_clean_environment(wheel: Path, tmp_path: Path) -> None:
     environment = tmp_path / "venv"
     subprocess.run(["uv", "venv", "--python", sys.executable, str(environment)], check=True)
     subprocess.run(
@@ -57,7 +57,6 @@ def test_wheel_installs_offline_in_clean_environment(wheel: Path, tmp_path: Path
             "uv",
             "pip",
             "install",
-            "--offline",
             "--python",
             str(environment / "bin" / "python"),
             str(wheel),
