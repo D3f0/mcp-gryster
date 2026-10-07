@@ -110,3 +110,8 @@ Observed static checks:
 
 - Added the root `tests` package marker so lifecycle tests can import `tests.integration.conftest` while unit and integration modules remain separately namespaced.
 - Per controller instruction, no checks were run.
+
+## Lifecycle Error-Match Follow-up
+
+- Updated the lifecycle unit test to match the stable `usable Grist port` semantic in the production validation error instead of the obsolete `published port` wording.
+- Per assignment, no checks were run.

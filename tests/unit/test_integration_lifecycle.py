@@ -26,7 +26,7 @@ def test_published_base_url_accepts_docker_allocated_loopback_port() -> None:
 def test_published_base_url_rejects_missing_or_non_loopback_mapping(
     completed: Any,
 ) -> None:
-    with pytest.raises(RuntimeError, match="published port"):
+    with pytest.raises(RuntimeError, match="usable Grist port"):
         conftest._published_base_url(completed)
 
 
