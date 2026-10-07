@@ -117,7 +117,7 @@ def _expect_success(operation: str, response: tuple[int, object]) -> object:
 
 def _select_organization(organizations: object, team_site: str) -> dict[str, object]:
     if not isinstance(organizations, list):
-        raise RuntimeError("Grist returned an invalid organization list")
+        raise TypeError("Grist returned an invalid organization list")
     matches = [
         organization
         for organization in organizations

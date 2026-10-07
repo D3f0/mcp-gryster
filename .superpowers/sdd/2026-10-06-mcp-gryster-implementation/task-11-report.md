@@ -75,3 +75,8 @@ Observed static checks:
 - Replaced a raw substring assertion with structural checks that the excluded `Attachment` column is absent from captured record fields while the expected `includeAttachmentMetadata` option remains present.
 - Scoped FastMCP server logger suppression to the intentionally denied private-fixture read so expected security errors do not emit tracebacks.
 - Controller reported four integration tests passing and this single assertion failing before the fix; per instruction, no checks were run afterward.
+
+## Lint Follow-up
+
+- Changed the invalid organization-list type failure to `TypeError`, matching the validation semantics and the existing explicit bootstrap error handling.
+- Per controller instruction, no checks were run for this follow-up.
