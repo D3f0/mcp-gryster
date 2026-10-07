@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from mcp_gryster.config import DomainAccess, Settings, SettingsError
 
-
 DOMAINS = (
     "organizations",
     "workspaces",
