@@ -69,3 +69,9 @@ Observed static checks:
 - Added regression coverage showing the personal `docs-5` site is ignored in favor of the `integration` team site.
 - Matching failures remain generic and do not include the organization payload.
 - Per controller instruction, no checks were run for this follow-up.
+
+## Controller Fixture Test Fix
+
+- Replaced a raw substring assertion with structural checks that the excluded `Attachment` column is absent from captured record fields while the expected `includeAttachmentMetadata` option remains present.
+- Scoped FastMCP server logger suppression to the intentionally denied private-fixture read so expected security errors do not emit tracebacks.
+- Controller reported four integration tests passing and this single assertion failing before the fix; per instruction, no checks were run afterward.

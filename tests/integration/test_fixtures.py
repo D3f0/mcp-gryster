@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any
 
@@ -19,7 +20,9 @@ async def _call(client: Client[Any], name: str, arguments: dict[str, Any]) -> di
 
 @pytest.mark.integration
 async def test_fixture_captures_only_explicit_columns_and_redacts_sensitive_values(
-    integration_mcp_client: Client[Any], grist_ids: dict[str, Any]
+    integration_mcp_client: Client[Any],
+    grist_ids: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = integration_mcp_client
     project_id = f"integration-widget-{uuid.uuid4().hex[:8]}"
@@ -53,11 +56,13 @@ async def test_fixture_captures_only_explicit_columns_and_redacts_sensitive_valu
     project_data = json.loads(project[0].text)
     assert project_data["files"] == ["src/index.html", "widget.json"]
 
-    denied = await client.call_tool(
-        "widget.projects.read",
-        {"project_id": project_id, "path": "fixtures/people.json"},
-        raise_on_error=False,
-    )
+    with monkeypatch.context() as expected_error:
+        expected_error.setattr(logging.getLogger("fastmcp.server.server"), "disabled", True)
+        denied = await client.call_tool(
+            "widget.projects.read",
+            {"project_id": project_id, "path": "fixtures/people.json"},
+            raise_on_error=False,
+        )
     assert denied.is_error
 
     described = await _call(client, "widget.projects.describe", {"project_id": project_id})
@@ -76,7 +81,8 @@ async def test_fixture_captures_only_explicit_columns_and_redacts_sensitive_valu
     )
     contents = json.loads(fixture_path.read_text())
     assert [column["id"] for column in contents["columns"]] == ["Name", "Email", "Secret"]
-    assert "Attachment" not in fixture_path.read_text()
+    assert all("Attachment" not in record["fields"] for record in contents["records"])
+    assert contents["options"]["includeAttachmentMetadata"] is False
     assert all(record["fields"]["Email"] == "[REDACTED]" for record in contents["records"])
     assert all(record["fields"]["Secret"] == "[REDACTED]" for record in contents["records"])
     assert {record["fields"]["Name"] for record in contents["records"]} == {
