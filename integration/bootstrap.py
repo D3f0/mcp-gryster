@@ -83,8 +83,6 @@ def _create_api_key(
 ) -> str:
     deadline = time.monotonic() + timeout
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
-    with _open_when_ready(opener, f"{base_url}/", deadline, retry_interval):
-        pass
     query = urlencode({"username": _EMAIL, "name": "Integration User", "next": base_url})
     with _open_when_ready(
         opener, f"{base_url}/test/login?{query}", deadline, retry_interval

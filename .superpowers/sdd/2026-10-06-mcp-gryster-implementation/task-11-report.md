@@ -122,3 +122,10 @@ Observed static checks:
 - Retained `APP_HOME_INTERNAL_URL` for container-local health and service communication.
 - Added a focused static regression assertion for the Compose origin configuration.
 - Per controller instruction, no checks were run.
+
+## Direct Test Login Follow-up
+
+- Removed the preliminary root request because Grist canonicalizes its redirect through the container-internal port, losing Docker's dynamic host port.
+- Bootstrap now calls the host-origin `/test/login` endpoint directly, retaining that endpoint's session cookie for API-key rotation.
+- Updated focused unit scenarios to assert no root request and cookie retention from test login to the profile API.
+- Per controller instruction, no checks were run.

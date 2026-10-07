@@ -120,10 +120,6 @@ def test_create_api_key_retries_transient_responses_and_keeps_session_cookie(
     ],
 ) -> None:
     base_url, counts, scenarios, requests = bootstrap_server
-    scenarios["/"] = [
-        (503, {}, b"starting"),
-        (200, {"Set-Cookie": "session=ready; Path=/"}, b"ok"),
-    ]
     scenarios["/test/login"] = [
         (502, {}, b"starting"),
         (200, {"Set-Cookie": "auth=logged-in; Path=/"}, b"ok"),
@@ -135,9 +131,9 @@ def test_create_api_key_retries_transient_responses_and_keeps_session_cookie(
     ]
 
     assert _create_api_key(base_url, timeout=1, retry_interval=0.01) == "a" * 40
-    assert counts == {"/": 2, "/test/login": 2, "/api/profile/apikey": 3}
-    assert requests[2][1] == "session=ready"
-    assert set((requests[-1][1] or "").split("; ")) == {"session=ready", "auth=logged-in"}
+    assert counts == {"/test/login": 2, "/api/profile/apikey": 3}
+    assert requests[0][1] is None
+    assert requests[-1][1] == "auth=logged-in"
 
 
 def test_create_api_key_accepts_json_string_for_compatibility(
@@ -149,7 +145,6 @@ def test_create_api_key_accepts_json_string_for_compatibility(
     ],
 ) -> None:
     base_url, _counts, scenarios, _requests = bootstrap_server
-    scenarios["/"] = [(200, {"Set-Cookie": "session=ready; Path=/"}, b"ok")]
     scenarios["/test/login"] = [
         (200, {"Set-Cookie": "auth=logged-in; Path=/"}, b"ok")
     ]
@@ -169,7 +164,6 @@ def test_create_api_key_does_not_retry_permanent_client_errors(
     ],
 ) -> None:
     base_url, counts, scenarios, _requests = bootstrap_server
-    scenarios["/"] = [(200, {"Set-Cookie": "session=ready; Path=/"}, b"ok")]
     scenarios["/test/login"] = [
         (200, {"Set-Cookie": "auth=logged-in; Path=/"}, b"ok")
     ]
