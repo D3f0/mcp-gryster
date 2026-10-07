@@ -211,7 +211,7 @@ def test_artifact_store_anchors_replace_when_parent_is_substituted(
 def test_artifact_store_fallback_writes_contained_artifact(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import mcp_gryster.artifacts as artifacts
+    from mcp_gryster import artifacts
 
     monkeypatch.setattr(artifacts, "_supports_dir_fd", lambda: False)
     store = ArtifactStore(tmp_path)
@@ -224,7 +224,7 @@ def test_artifact_store_fallback_writes_contained_artifact(
 def test_artifact_store_fallback_rejects_unsafe_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import mcp_gryster.artifacts as artifacts
+    from mcp_gryster import artifacts
 
     monkeypatch.setattr(artifacts, "_supports_dir_fd", lambda: False)
     root = tmp_path / "artifacts"

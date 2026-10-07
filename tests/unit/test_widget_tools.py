@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from fastmcp import Client
 from mcp.shared.exceptions import McpError
+
 from mcp_gryster.app import create_app
 from mcp_gryster.config import Settings
 from mcp_gryster.errors import McpGrysterError

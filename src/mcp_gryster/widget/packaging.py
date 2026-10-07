@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import io
 import json
-import shutil
 import secrets
+import shutil
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
@@ -103,7 +103,7 @@ def _load_metadata(path: Path, project_id: str) -> WidgetMetadata:
     try:
         raw = json.loads(path.read_bytes())
         if not isinstance(raw, dict):
-            raise ValueError
+            raise TypeError
         if raw.get("schemaVersion") != 1:
             raise ValueError
         return WidgetMetadata.model_validate(
@@ -118,7 +118,7 @@ def _load_metadata(path: Path, project_id: str) -> WidgetMetadata:
                 "authors": raw.get("authors", []),
             }
         )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
         raise McpGrysterError("PACKAGE_FAILED", "Widget metadata is invalid") from exc
 
 
