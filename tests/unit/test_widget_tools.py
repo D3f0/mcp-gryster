@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 import pytest
 from fastmcp import Client
-
+from mcp.shared.exceptions import McpError
 from mcp_gryster.app import create_app
 from mcp_gryster.config import Settings
 from mcp_gryster.widget.preview import PreviewManager
@@ -173,7 +174,9 @@ async def test_widget_package_reports_stale_revision_without_private_details(
 @pytest.mark.asyncio
 async def test_widget_resources_expose_authored_files_without_fixture_enumeration_or_traversal(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(logging.getLogger("fastmcp.server.server"), "disabled", True)
     settings = Settings(workspace_root=tmp_path / "workspace")
     app = create_app(settings)
     async with Client(app) as client:
@@ -220,7 +223,7 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
             "widget://projects/resource-widget/files/../widget.json",
             "widget://projects/resource-widget/files/src/%2E%2E/widget.json",
         ):
-            with pytest.raises(Exception):
+            with pytest.raises(McpError, match="Resource not found|Error reading resource"):
                 await client.read_resource(uri)
 
         artifact_root = settings.workspace_root / "artifacts" / "widget"
@@ -228,7 +231,7 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
         outside.write_bytes(b"private")
         artifact_root.mkdir(parents=True)
         (artifact_root / "linked.zip").symlink_to(outside)
-        with pytest.raises(Exception):
+        with pytest.raises(McpError, match="Error reading resource"):
             await client.read_resource("widget://dist/linked.zip")
 
         validation = await client.read_resource("widget://projects/resource-widget/validation")
