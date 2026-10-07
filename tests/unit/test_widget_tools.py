@@ -10,7 +10,10 @@ from fastmcp import Client
 from mcp.shared.exceptions import McpError
 from mcp_gryster.app import create_app
 from mcp_gryster.config import Settings
+from mcp_gryster.errors import McpGrysterError
 from mcp_gryster.widget.preview import PreviewManager
+from mcp_gryster.widget.projects import ProjectStore
+from mcp_gryster.widget.tools import _read_authored_file
 
 
 async def _call(client: Client[Any], name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -18,6 +21,13 @@ async def _call(client: Client[Any], name: str, arguments: dict[str, Any]) -> di
     assert not result.is_error
     assert result.structured_content is not None
     return result.structured_content
+
+async def _assert_resource_denied(client: Client[Any], uri: str) -> None:
+    try:
+        contents = await client.read_resource(uri)
+    except McpError:
+        return
+    assert contents == []
 
 
 @pytest.mark.asyncio
@@ -176,8 +186,8 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(logging.getLogger("fastmcp.server.server"), "disabled", True)
     settings = Settings(workspace_root=tmp_path / "workspace")
+    store = ProjectStore(settings)
     app = create_app(settings)
     async with Client(app) as client:
         created = await _call(
@@ -218,21 +228,37 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
         assert "<!doctype html>" in authored[0].text
         assert authored[0].mimeType == "text/plain"
 
-        for uri in (
-            "widget://projects/resource-widget/files/fixtures/secret.json",
-            "widget://projects/resource-widget/files/../widget.json",
-            "widget://projects/resource-widget/files/src/%2E%2E/widget.json",
-        ):
-            with pytest.raises(McpError, match="Resource not found|Error reading resource"):
-                await client.read_resource(uri)
+        denied_paths = (
+            "fixtures/secret.json",
+            "../widget.json",
+            "src/%2E%2E/widget.json",
+        )
+        for path in denied_paths:
+            with pytest.raises(McpGrysterError) as denied:
+                _read_authored_file(store, "resource-widget", path)
+            assert denied.value.code == "PATH_NOT_ALLOWED"
+
+        with monkeypatch.context() as expected_errors:
+            expected_errors.setattr(
+                logging.getLogger("fastmcp.server.server"), "disabled", True
+            )
+            for uri in (
+                "widget://projects/resource-widget/files/fixtures/secret.json",
+                "widget://projects/resource-widget/files/../widget.json",
+                "widget://projects/resource-widget/files/src/%2E%2E/widget.json",
+            ):
+                await _assert_resource_denied(client, uri)
 
         artifact_root = settings.workspace_root / "artifacts" / "widget"
         outside = tmp_path / "outside.zip"
         outside.write_bytes(b"private")
         artifact_root.mkdir(parents=True)
         (artifact_root / "linked.zip").symlink_to(outside)
-        with pytest.raises(McpError, match="Error reading resource"):
-            await client.read_resource("widget://dist/linked.zip")
+        with monkeypatch.context() as expected_errors:
+            expected_errors.setattr(
+                logging.getLogger("fastmcp.server.server"), "disabled", True
+            )
+            await _assert_resource_denied(client, "widget://dist/linked.zip")
 
         validation = await client.read_resource("widget://projects/resource-widget/validation")
         assert json.loads(validation[0].text)["revision"] == revision
