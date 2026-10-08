@@ -63,7 +63,7 @@ def _project(store: ProjectStore, **metadata_updates: Any) -> str:
 
 
 def _codes(report: Any) -> list[str]:
-    return [issue.code for issue in report.issues]
+    return [issue.code for issue in (*report.errors, *report.warnings)]
 
 
 def _replace_widget_json(store: ProjectStore, payload: dict[str, Any]) -> None:
@@ -156,10 +156,12 @@ def test_invalid_metadata_has_one_stable_code_without_authored_evidence(store: P
     report = WidgetValidator(store).validate("safe-widget")
 
     assert _codes(report) == ["METADATA_INVALID"]
-    serialized_evidence = json.dumps([issue.evidence for issue in report.issues])
+    serialized_evidence = json.dumps([issue.evidence for issue in report.errors])
     assert "invalid widget id" not in serialized_evidence
     assert "Never include this authored name" not in serialized_evidence
     assert "owner" not in serialized_evidence
+    assert [check.code for check in report.checks] == ["METADATA", "PREVIEW_SMOKE"]
+    assert report.checks[0].passed is False
 
 
 def test_missing_entrypoint_and_local_asset_have_exact_codes(store: ProjectStore) -> None:
@@ -177,9 +179,9 @@ def test_missing_entrypoint_and_local_asset_have_exact_codes(store: ProjectStore
     )
     assert restored.revision
     assert _codes(WidgetValidator(store).validate("safe-widget")) == [
-        "EXTERNAL_ORIGIN",
         "ASSET_MISSING",
         "GRIST_READY_MISSING",
+        "EXTERNAL_ORIGIN",
     ]
 
 
@@ -196,7 +198,7 @@ def test_external_origin_and_full_access_are_warnings(store: ProjectStore) -> No
 
     report = WidgetValidator(store).validate("safe-widget")
 
-    assert [(issue.code, issue.severity) for issue in report.issues] == [
+    assert [(issue.code, issue.severity) for issue in report.warnings] == [
         ("FULL_ACCESS", "warning"),
         ("EXTERNAL_ORIGIN", "warning"),
     ]
@@ -232,7 +234,7 @@ def test_plugin_must_precede_grist_initialization(store: ProjectStore) -> None:
 
     report = WidgetValidator(store).validate("safe-widget")
 
-    assert _codes(report) == ["EXTERNAL_ORIGIN", "INLINE_SCRIPT", "PLUGIN_ORDER"]
+    assert _codes(report) == ["PLUGIN_ORDER", "EXTERNAL_ORIGIN", "INLINE_SCRIPT"]
 
 
 def test_missing_ready_and_literal_access_mismatch_have_stable_codes(store: ProjectStore) -> None:
@@ -241,8 +243,8 @@ def test_missing_ready_and_literal_access_mismatch_have_stable_codes(store: Proj
         "safe-widget", revision, {"src/app.js": b"grist.onRecord(() => {});\n"}, []
     )
     assert _codes(WidgetValidator(store).validate("safe-widget")) == [
-        "EXTERNAL_ORIGIN",
         "GRIST_READY_MISSING",
+        "EXTERNAL_ORIGIN",
     ]
 
     store.apply_files(
@@ -254,8 +256,8 @@ def test_missing_ready_and_literal_access_mismatch_have_stable_codes(store: Proj
         [],
     )
     assert _codes(WidgetValidator(store).validate("safe-widget")) == [
-        "EXTERNAL_ORIGIN",
         "READY_ACCESS_MISMATCH",
+        "EXTERNAL_ORIGIN",
     ]
 
 
@@ -270,7 +272,7 @@ def test_dynamic_ready_config_is_not_treated_as_literal_semantics(store: Project
 
     report = WidgetValidator(store).validate("safe-widget")
 
-    assert _codes(report) == ["EXTERNAL_ORIGIN", "DYNAMIC_PLUGIN_CONFIG"]
+    assert _codes(report) == ["DYNAMIC_PLUGIN_CONFIG", "EXTERNAL_ORIGIN"]
 
 
 def test_declared_columns_and_unsupported_grist_members_are_checked_from_ast(
@@ -292,8 +294,8 @@ def test_declared_columns_and_unsupported_grist_members_are_checked_from_ast(
     report = WidgetValidator(store).validate("safe-widget")
 
     assert _codes(report) == [
-        "EXTERNAL_ORIGIN",
         "DECLARED_COLUMN_MISSING",
+        "EXTERNAL_ORIGIN",
         "UNSUPPORTED_GRIST_MEMBER",
     ]
 
@@ -304,8 +306,8 @@ def test_malformed_javascript_is_deterministic_across_parser_versions(store: Pro
 
     report = WidgetValidator(store).validate("safe-widget")
 
-    assert _codes(report) == ["EXTERNAL_ORIGIN", "JAVASCRIPT_SYNTAX"]
-    issue = report.issues[-1]
+    assert _codes(report) == ["JAVASCRIPT_SYNTAX", "EXTERNAL_ORIGIN"]
+    issue = report.errors[-1]
     assert issue == ValidationIssue(
         code="JAVASCRIPT_SYNTAX",
         severity="error",
@@ -330,11 +332,11 @@ def test_fixture_checks_required_mapping_type_selection_multiplicity_and_access(
     report = WidgetValidator(store).validate("safe-widget", "preview")
 
     assert _codes(report) == [
-        "EXTERNAL_ORIGIN",
         "FIXTURE_REQUIRED_COLUMN",
-        "UNUSED_FIXTURE_COLUMN",
         "FIXTURE_SELECTED_RECORD",
         "FIXTURE_ACCESS_MISMATCH",
+        "EXTERNAL_ORIGIN",
+        "UNUSED_FIXTURE_COLUMN",
     ]
 
     current = store.read("safe-widget")
@@ -373,7 +375,7 @@ def test_fixture_rejects_unknown_column_types_centrally_and_never_echoes_values(
     report = WidgetValidator(store).validate("safe-widget", "preview")
 
     assert "FIXTURE_TYPE_UNSUPPORTED" in _codes(report)
-    evidence = json.dumps([issue.evidence for issue in report.issues])
+    evidence = json.dumps([issue.evidence for issue in (*report.errors, *report.warnings)])
     assert "AuthoredSecretType" not in evidence
     assert "SecretName" not in evidence
     assert "Sensitive Label" not in evidence
@@ -416,7 +418,7 @@ def test_omitted_ready_access_defaults_to_none_for_comparison(store: ProjectStor
         {"src/app.js": b"grist.ready({columns: [{name: 'name', type: 'Text'}]});\n"}, [],
     )
     assert _codes(WidgetValidator(store).validate("safe-widget")) == [
-        "EXTERNAL_ORIGIN", "READY_ACCESS_MISMATCH",
+        "READY_ACCESS_MISMATCH", "EXTERNAL_ORIGIN",
     ]
 
 
@@ -486,7 +488,7 @@ def test_unused_fixture_column_emits_value_free_warning(store: ProjectStore) -> 
     fixture["records"][0]["fields"]["AuthoredUnused"] = "secret"
     _add_fixture(store, (json.dumps(fixture) + "\n").encode())
     report = WidgetValidator(store).validate("safe-widget", "preview")
-    issue = next(issue for issue in report.issues if issue.code == "UNUSED_FIXTURE_COLUMN")
+    issue = next(issue for issue in report.warnings if issue.code == "UNUSED_FIXTURE_COLUMN")
     assert issue.severity == "warning"
     assert "AuthoredUnused" not in json.dumps(issue.evidence)
 
@@ -557,7 +559,7 @@ def test_invalid_literal_ready_column_emits_value_free_stable_issue(store: Proje
 
     report = WidgetValidator(store).validate("safe-widget")
 
-    issue = next(issue for issue in report.issues if issue.code == "READY_COLUMN_INVALID")
+    issue = next(issue for issue in report.errors if issue.code == "READY_COLUMN_INVALID")
     assert issue.severity == "error"
     assert issue.evidence == ("column", "0")
     assert "READY_COLUMN_MISMATCH" not in _codes(report)

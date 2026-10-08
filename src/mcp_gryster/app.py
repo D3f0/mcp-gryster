@@ -45,7 +45,9 @@ def create_app(settings: Settings) -> FastMCP:
     adapter = adapter_factory()
     project_store = ProjectStore(settings)
     preview_evidence = PreviewEvidenceStore()
-    preview_manager = PreviewManager(project_store, preview_evidence)
+    preview_manager = PreviewManager(
+        project_store, preview_evidence, settings.preview_timeout_seconds
+    )
     fixture_manager = FixtureManager(project_store, adapter, settings)
     widget_validator = WidgetValidator(project_store, preview_evidence)
     widget_packager = WidgetPackager(

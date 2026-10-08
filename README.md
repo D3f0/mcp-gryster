@@ -37,10 +37,10 @@ Streamable HTTP is available with `--transport streamable-http --host 127.0.0.1 
 
 | Domain | Default |
 | --- | --- |
-| `organizations` | `none` |
-| `workspaces` | `none` |
-| `documents` | `none` |
-| `schema` | `none` |
+| `organizations` | `read` |
+| `workspaces` | `read` |
+| `documents` | `read` |
+| `schema` | `read` |
 | `records` | `read` |
 | `access` | `none` |
 | `attachments` | `none` |
@@ -60,7 +60,7 @@ As an additional workflow—not the product's primary identity—MCP clients can
 
 Fixtures capture only explicitly requested columns and rows. Column IDs remain unchanged so widget mappings continue to work; labels and values matching redaction rules are replaced. If an identifier is itself sensitive, omit that column with the request allowlist. Attachment metadata requires explicit opt-in. Limits control row count and payload size. Private `fixtures/` data and credentials are excluded from generated widget packages, which contain authored `src/` files only. Fixture previews use ephemeral IPv4 loopback ports and capability URLs; live previews serve authored files unchanged.
 
-The MCP surface includes `widget.projects.*`, `widget.fixtures.*`, `widget.validate`, `widget.preview.*`, and `widget.package`. Read-only `widget://` resources expose project metadata and authored files, validation reports, generated artifacts, and the checked-in Grist method registry.
+The MCP surface includes `widget.projects.apply_files`, `widget.fixtures.create_from_grist`, `widget.validate`, `widget.preview.*`, and `widget.package`. Read-only resources expose projects and their authored files, validation reports, project-scoped generated artifacts under `widget://projects/{project_id}/dist/{name}`, and the checked-in registry at `grist://method-registry`.
 
 ## Integration tests
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Literal
 
 from fastmcp import FastMCP
@@ -55,7 +56,7 @@ def register_widget_tools(
     def read_project_file(project_id: str, path: str) -> str:
         return _read_authored_file(store, project_id, path).decode("utf-8")
 
-    @mcp.tool(name="widget.projects.apply")
+    @mcp.tool(name="widget.projects.apply_files")
     def apply_project(
         project_id: str,
         expected_revision: str,
@@ -68,7 +69,7 @@ def register_widget_tools(
     def create_fixture(project_id: str, fixture: PreviewFixture) -> FixtureSummary:
         return fixtures.create(project_id, fixture)
 
-    @mcp.tool(name="widget.fixtures.from_grist")
+    @mcp.tool(name="widget.fixtures.create_from_grist")
     async def create_fixture_from_grist(
         project_id: str,
         expected_revision: str,
@@ -167,15 +168,15 @@ def register_widget_tools(
         return validator.validate(project_id, fixture_id).model_dump_json()
 
     @mcp.resource(
-        "widget://dist/{name}",
+        "widget://projects/{project_id}/dist/{name}",
         name="widget-dist",
         mime_type="application/octet-stream",
     )
-    def dist_resource(name: str) -> bytes:
-        return _read_dist(artifacts, name)
+    def dist_resource(project_id: str, name: str) -> bytes:
+        return _read_dist(artifacts, project_id, name)
 
     @mcp.resource(
-        "widget://grist/methods",
+        "grist://method-registry",
         name="grist-method-registry",
         mime_type="application/json",
     )
@@ -200,7 +201,12 @@ def _read_authored_file(store: ProjectStore, project_id: str, path: str) -> byte
         raise McpGrysterError("PATH_NOT_ALLOWED", "Widget project path is not allowed") from exc
 
 
-def _read_dist(artifacts: ArtifactStore, name: str) -> bytes:
+def _read_dist(artifacts: ArtifactStore, project_id: str, name: str) -> bytes:
+    escaped_project = re.escape(project_id)
+    archive = rf"{escaped_project}-[0-9a-f]{{64}}\.zip"
+    manifest = rf"{escaped_project}-[0-9a-f]{{64}}-[0-9a-f]{{64}}\.json"
+    if re.fullmatch(rf"(?:{archive}|{manifest})", name) is None:
+        raise McpGrysterError("PATH_NOT_ALLOWED", "Artifact path is not allowed")
     return artifacts.read_bytes("widget", name)
 
 

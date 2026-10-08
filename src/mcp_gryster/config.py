@@ -31,10 +31,10 @@ class DomainPolicy(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    organizations: DomainAccess = DomainAccess.NONE
-    workspaces: DomainAccess = DomainAccess.NONE
-    documents: DomainAccess = DomainAccess.NONE
-    schema_access: DomainAccess = Field(default=DomainAccess.NONE, alias="schema")
+    organizations: DomainAccess = DomainAccess.READ
+    workspaces: DomainAccess = DomainAccess.READ
+    documents: DomainAccess = DomainAccess.READ
+    schema_access: DomainAccess = Field(default=DomainAccess.READ, alias="schema")
     records: DomainAccess = DomainAccess.READ
     access: DomainAccess = DomainAccess.NONE
     attachments: DomainAccess = DomainAccess.NONE

@@ -48,9 +48,9 @@ async def test_widget_mcp_surface_completes_project_fixture_validate_preview_pac
             "widget.projects.list",
             "widget.projects.describe",
             "widget.projects.read",
-            "widget.projects.apply",
+            "widget.projects.apply_files",
             "widget.fixtures.create",
-            "widget.fixtures.from_grist",
+            "widget.fixtures.create_from_grist",
             "widget.validate",
             "widget.preview.start",
             "widget.preview.stop",
@@ -72,7 +72,7 @@ async def test_widget_mcp_surface_completes_project_fixture_validate_preview_pac
         revision = created["revision"]
         applied = await _call(
             client,
-            "widget.projects.apply",
+            "widget.projects.apply_files",
             {
                 "project_id": "flow-widget",
                 "expected_revision": revision,
@@ -138,9 +138,10 @@ async def test_widget_mcp_surface_completes_project_fixture_validate_preview_pac
             },
         )
         assert package["revision"] == revision
+        assert package["validation"] == validation
         assert package["artifact"]["name"] == f"flow-widget-{revision}.zip"
         artifact = await client.read_resource(
-            f"widget://dist/{package['artifact']['name']}"
+            f"widget://projects/flow-widget/dist/{package['artifact']['name']}"
         )
         assert artifact[0].blob is not None
         assert await _call(client, "widget.preview.stop", {"session_id": preview["session_id"]}) == {
@@ -274,11 +275,13 @@ async def test_widget_resources_expose_authored_files_without_fixture_enumeratio
             expected_errors.setattr(
                 logging.getLogger("fastmcp.server.server"), "disabled", True
             )
-            await _assert_resource_denied(client, "widget://dist/linked.zip")
+            await _assert_resource_denied(
+                client, "widget://projects/resource-widget/dist/linked.zip"
+            )
 
         validation = await client.read_resource("widget://projects/resource-widget/validation")
         assert json.loads(validation[0].text)["revision"] == revision
-        methods = await client.read_resource("widget://grist/methods")
+        methods = await client.read_resource("grist://method-registry")
         method_data = json.loads(methods[0].text)
         assert method_data["pygrister_version"] == "0.10.0"
         assert method_data["methods"]
@@ -296,8 +299,13 @@ def test_dist_reader_delegates_to_artifact_store(
 
     monkeypatch.setattr(artifacts, "read_bytes", read_bytes)
 
-    assert _read_dist(artifacts, "package.zip") == b"artifact"
-    assert calls == [("widget", "package.zip")]
+    valid_name = f"project-{'0' * 64}.zip"
+    assert _read_dist(artifacts, "project", valid_name) == b"artifact"
+    assert calls == [("widget", valid_name)]
+    with pytest.raises(McpGrysterError, match="not allowed"):
+        _read_dist(artifacts, "other", valid_name)
+    with pytest.raises(McpGrysterError, match="not allowed"):
+        _read_dist(artifacts, "project", f"project-child-{'0' * 64}.zip")
 
 
 async def _fake_start(

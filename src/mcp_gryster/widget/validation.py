@@ -47,6 +47,16 @@ class ValidationIssue(BaseModel):
     evidence: tuple[str, ...] = ()
 
 
+class ValidationCheck(BaseModel):
+    """Stable evidence that one consumer-visible validation behavior ran."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    code: str
+    passed: bool
+    message: str
+    evidence: tuple[str, ...] = ()
+
+
 class ValidationReport(BaseModel):
     """Static findings and package eligibility for one immutable revision."""
 
@@ -54,10 +64,11 @@ class ValidationReport(BaseModel):
     project_id: str
     revision: str
     fixture_id: str | None
-    issues: tuple[ValidationIssue, ...]
+    errors: tuple[ValidationIssue, ...]
+    warnings: tuple[ValidationIssue, ...]
+    checks: tuple[ValidationCheck, ...]
     valid: bool
     packageable: bool
-
 
 class PreviewEvidence(Protocol):
     """Lookup contract for successful fixture-preview evidence."""
@@ -153,27 +164,37 @@ class WidgetValidator:
                 path: destination.joinpath(*path.split("/")).read_bytes()
                 for path in snapshot.files
             }
-            issues = self._validate_files(files, fixture_id)
+            issues, executed_checks = self._validate_files(files, fixture_id)
         finally:
             shutil.rmtree(destination, ignore_errors=True)
-        valid = all(issue.severity != "error" for issue in issues)
+        errors = tuple(issue for issue in issues if issue.severity == "error")
+        warnings = tuple(issue for issue in issues if issue.severity == "warning")
+        preview_passed = self._preview_evidence.has_success(
+            project_id, snapshot.revision, fixture_id
+        )
+        checks = _validation_checks(issues, executed_checks, preview_passed)
+        valid = not errors
         return ValidationReport(
             project_id=project_id,
             revision=snapshot.revision,
             fixture_id=fixture_id,
-            issues=tuple(issues),
+            errors=errors,
+            warnings=warnings,
+            checks=checks,
             valid=valid,
-            packageable=valid and self._preview_evidence.has_success(
-                project_id, snapshot.revision, fixture_id
-            ),
+            packageable=valid and preview_passed,
         )
 
     def _validate_files(
         self, files: Mapping[str, bytes], fixture_id: str | None
-    ) -> list[ValidationIssue]:
+    ) -> tuple[list[ValidationIssue], tuple[str, ...]]:
         metadata = _metadata(files.get("widget.json"))
         if metadata is None:
-            return [_issue("METADATA_INVALID", "error", "Widget metadata is invalid", "metadata")]
+            return (
+                [_issue("METADATA_INVALID", "error", "Widget metadata is invalid", "metadata")],
+                ("METADATA",),
+            )
+        executed = ["METADATA", "ENTRYPOINT"]
         issues: list[ValidationIssue] = []
         if metadata.access_level == "full":
             issues.append(_issue("FULL_ACCESS", "warning", "Widget requests full access", "access"))
@@ -183,14 +204,15 @@ class WidgetValidator:
             issues.append(
                 _issue("ENTRYPOINT_MISSING", "error", "Widget entrypoint is missing", "entrypoint")
             )
-            return issues
+            return issues, tuple(executed)
         document = _DocumentParser()
         try:
             document.feed(html.decode())
             document.close()
         except (UnicodeDecodeError, ValueError):
             issues.append(_issue("ENTRYPOINT_INVALID", "error", "Widget entrypoint is invalid", "entrypoint"))
-            return issues
+            return issues, tuple(executed)
+        executed.extend(("LOCAL_ASSETS", "JAVASCRIPT_PARSE"))
         base = PurePosixPath(entrypoint).parent
         if any(_is_external(asset) for asset in document.assets):
             issues.append(_issue("EXTERNAL_ORIGIN", "warning", "Widget references an external origin", "asset"))
@@ -209,10 +231,12 @@ class WidgetValidator:
         if facts.has_syntax_error:
             issues.append(_issue("JAVASCRIPT_SYNTAX", "error", "JavaScript contains syntax errors", "javascript"))
         else:
+            executed.extend(("GRIST_INITIALIZATION", "GRIST_CONTRACT"))
             issues.extend(_javascript_issues(metadata, facts, plugin_scripts))
         if fixture_id is not None:
+            executed.append("FIXTURE_CONTRACT")
             issues.extend(_fixture_issues(files, metadata, fixture_id))
-        return issues
+        return issues, tuple(executed)
 
 
 def _metadata(raw: bytes | None) -> WidgetMetadata | None:
@@ -356,6 +380,43 @@ def _fixture_issues(
     if _ACCESS_RANK[fixture.access_level] < _ACCESS_RANK[metadata.access_level]:
         issues.append(_issue("FIXTURE_ACCESS_MISMATCH", "error", "Fixture access is insufficient", "access"))
     return issues
+
+
+def _validation_checks(
+    issues: list[ValidationIssue],
+    executed: tuple[str, ...],
+    preview_passed: bool,
+) -> tuple[ValidationCheck, ...]:
+    error_codes = {issue.code for issue in issues if issue.severity == "error"}
+    groups = {
+        "METADATA": ("Metadata schema and widget identifier are valid", {"METADATA_INVALID"}, ("widget.json",)),
+        "ENTRYPOINT": ("Entrypoint exists and is readable HTML below src", {"ENTRYPOINT_MISSING", "ENTRYPOINT_INVALID"}, ("src",)),
+        "LOCAL_ASSETS": ("Local asset references resolve within the project", {"ASSET_MISSING"}, ("src",)),
+        "JAVASCRIPT_PARSE": ("Referenced JavaScript parses successfully", {"JAVASCRIPT_SYNTAX"}, ("src",)),
+        "GRIST_INITIALIZATION": ("Grist loads before a statically verifiable ready call", {"PLUGIN_ORDER", "GRIST_READY_MISSING", "DYNAMIC_PLUGIN_CONFIG"}, ("src",)),
+        "GRIST_CONTRACT": ("Declared access and columns match Grist initialization", {"READY_ACCESS_MISMATCH", "READY_COLUMN_INVALID", "DECLARED_COLUMN_MISSING", "READY_COLUMN_MISMATCH"}, ("widget.json", "src")),
+        "FIXTURE_CONTRACT": ("Selected fixture satisfies declared mappings, types, selection, and access", {code for code in error_codes if code.startswith("FIXTURE_")}, ("fixture",)),
+    }
+    checks = []
+    for code in executed:
+        message, failures, evidence = groups[code]
+        checks.append(
+            ValidationCheck(
+                code=code,
+                passed=not bool(error_codes & failures),
+                message=message,
+                evidence=evidence,
+            )
+        )
+    checks.append(
+        ValidationCheck(
+            code="PREVIEW_SMOKE",
+            passed=preview_passed,
+            message="Preview handshake and clean smoke interval completed for this revision",
+            evidence=("preview",),
+        )
+    )
+    return tuple(checks)
 
 
 def _issue(code: str, severity: Literal["error", "warning"], message: str, *evidence: str) -> ValidationIssue:

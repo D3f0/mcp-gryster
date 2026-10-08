@@ -41,7 +41,7 @@ async def test_fixture_captures_only_explicit_columns_and_redacts_sensitive_valu
     )
     fixture = await _call(
         client,
-        "widget.fixtures.from_grist",
+        "widget.fixtures.create_from_grist",
         {
             "project_id": project_id,
             "expected_revision": created["revision"],

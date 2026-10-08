@@ -19,7 +19,7 @@ from mcp_gryster.widget.fixtures import FixtureManager
 from mcp_gryster.widget.models import WidgetMetadata
 from mcp_gryster.widget.paths import validate_revision
 from mcp_gryster.widget.projects import ProjectStore
-from mcp_gryster.widget.validation import WidgetValidator
+from mcp_gryster.widget.validation import ValidationReport, WidgetValidator
 
 _FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 _FILE_MODE = 0o100644
@@ -43,9 +43,9 @@ class PackageResult(BaseModel):
 
     project_id: str
     revision: str
+    validation: ValidationReport
     artifact: ArtifactReference
     manifest: ArtifactReference
-
 
 class WidgetPackager:
     """Validate, source-materialize, and emit deterministic widget artifacts."""
@@ -102,6 +102,7 @@ class WidgetPackager:
         return PackageResult(
             project_id=project_id,
             revision=revision,
+            validation=report,
             artifact=_reference(artifact),
             manifest=_reference(manifest),
         )

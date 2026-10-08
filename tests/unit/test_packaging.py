@@ -118,6 +118,11 @@ def test_package_uses_fixture_source_materialization_and_only_src_enters_zip(
             for name in archive.namelist()
         )
     assert b"must-not-ship" not in archive_bytes
+    assert result.validation.project_id == "safe-widget"
+    assert result.validation.revision == revision
+    assert result.validation.fixture_id is None
+    assert result.validation.packageable is True
+    assert result.validation.checks
 
 
 def test_manifest_is_canonical_and_package_is_byte_deterministic(tmp_path: Path) -> None:

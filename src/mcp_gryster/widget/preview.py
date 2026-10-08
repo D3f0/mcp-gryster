@@ -103,14 +103,21 @@ class _Runtime:
     successful: bool = False
     failed: bool = False
     bridge_available: bool = True
-
+    smoke_task: asyncio.Task[None] | None = None
+    smoke_interval_seconds: float = 30.0
 
 class PreviewManager:
     """Own isolated loopback servers for fixture and live widget previews."""
 
-    def __init__(self, store: ProjectStore, evidence: PreviewEvidenceStore) -> None:
+    def __init__(
+        self,
+        store: ProjectStore,
+        evidence: PreviewEvidenceStore,
+        preview_timeout_seconds: float = 30.0,
+    ) -> None:
         self._store = store
         self._evidence = evidence
+        self._preview_timeout_seconds = preview_timeout_seconds
         self._sessions: dict[str, _Runtime] = {}
         self._lock = asyncio.Lock()
 
@@ -194,6 +201,7 @@ class PreviewManager:
                 server=server,
                 task=task,
                 evidence=self._evidence,
+                smoke_interval_seconds=self._preview_timeout_seconds,
             )
             holder["runtime"] = runtime
             async with self._lock:
@@ -209,7 +217,7 @@ class PreviewManager:
             runtime = self._sessions.pop(session_id, None)
         if runtime is None:
             return StopPreviewResult(session_id=session_id, stopped=False)
-        await self._shutdown(runtime.server, runtime.task)
+        await self._stop_runtime(runtime)
         return StopPreviewResult(session_id=session_id, stopped=True)
 
     async def stop_all(self) -> None:
@@ -218,9 +226,12 @@ class PreviewManager:
             runtimes = tuple(self._sessions.values())
             self._sessions.clear()
         if runtimes:
-            await asyncio.gather(
-                *(self._shutdown(runtime.server, runtime.task) for runtime in runtimes)
-            )
+            await asyncio.gather(*(self._stop_runtime(runtime) for runtime in runtimes))
+
+    async def _stop_runtime(self, runtime: _Runtime) -> None:
+        await _cancel_smoke(runtime)
+        await self._shutdown(runtime.server, runtime.task)
+
 
     @staticmethod
     async def _shutdown(server: uvicorn.Server, task: asyncio.Task[None]) -> None:
@@ -479,22 +490,21 @@ async def _status_response(request: Request, runtime: _Runtime) -> Response:
     if status.kind in {"unsupported", "uncaught"}:
         runtime.failed = True
         runtime.successful = False
+        await _cancel_smoke(runtime)
         runtime.evidence.discard(
             runtime.session.project_id,
             runtime.session.revision,
             runtime.session.fixture_id,
         )
     if status.kind == "handshake":
-        runtime.successful = True
-        runtime.evidence.record_success(
-            runtime.session.project_id,
-            runtime.session.revision,
-            runtime.session.fixture_id,
+        runtime.smoke_task = asyncio.create_task(
+            _complete_smoke_interval(runtime),
+            name=f"preview-smoke-{runtime.session.session_id}",
         )
     return Response(status_code=204, headers=_cors_headers(runtime))
 
 def _handshake_allowed(runtime: _Runtime) -> bool:
-    if runtime.failed or runtime.successful:
+    if runtime.failed or runtime.successful or runtime.smoke_task is not None:
         return False
     statuses = runtime.session._statuses
     ready_indexes = [index for index, status in enumerate(statuses) if status.kind == "ready"]
@@ -509,6 +519,27 @@ def _handshake_allowed(runtime: _Runtime) -> bool:
         ("event", "records"),
         ("event", "selectedRecord"),
     ]
+
+async def _cancel_smoke(runtime: _Runtime) -> None:
+    task = runtime.smoke_task
+    runtime.smoke_task = None
+    if task is None:
+        return
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+
+async def _complete_smoke_interval(runtime: _Runtime) -> None:
+    await asyncio.sleep(runtime.smoke_interval_seconds)
+    if runtime.failed:
+        return
+    runtime.successful = True
+    runtime.evidence.record_success(
+        runtime.session.project_id,
+        runtime.session.revision,
+        runtime.session.fixture_id,
+    )
+
 
 
 def _sanitize_status(raw: Any) -> PreviewStatus | None:

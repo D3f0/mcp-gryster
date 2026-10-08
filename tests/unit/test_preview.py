@@ -231,6 +231,41 @@ async def test_live_preview_serves_only_unmodified_authored_static(tmp_path: Pat
 
     await manager.stop_all()
 
+@pytest.mark.asyncio
+async def test_stop_all_cancels_pending_smoke_without_recording_evidence(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    revision = _project(store)
+    evidence = PreviewEvidenceStore()
+    manager = PreviewManager(store, evidence, preview_timeout_seconds=60)
+    session = await manager.start("preview-widget", "fixture", "sample")
+    runtime = manager._sessions[session.session_id]
+    runtime.smoke_task = asyncio.create_task(asyncio.sleep(60))
+
+    await manager.stop_all()
+
+    assert runtime.smoke_task is None
+    assert not evidence.has_success("preview-widget", revision, "sample")
+
+
+@pytest.mark.asyncio
+async def test_smoke_evidence_is_recorded_only_after_configured_interval(tmp_path: Path) -> None:
+    store = _store(tmp_path)
+    revision = _project(store)
+    evidence = PreviewEvidenceStore()
+    manager = PreviewManager(store, evidence, preview_timeout_seconds=0.01)
+    session = await manager.start("preview-widget", "fixture", "sample")
+    runtime = manager._sessions[session.session_id]
+    runtime.smoke_task = asyncio.create_task(
+        __import__("mcp_gryster.widget.preview", fromlist=["_complete_smoke_interval"])
+        ._complete_smoke_interval(runtime)
+    )
+
+    assert not evidence.has_success("preview-widget", revision, "sample")
+    await runtime.smoke_task
+    assert evidence.has_success("preview-widget", revision, "sample")
+    await manager.stop_all()
+    assert evidence.has_success("preview-widget", revision, "sample")
+
 
 @pytest.mark.asyncio
 async def test_authored_widget_cannot_reload_bridge_or_forge_preview_status(
@@ -265,7 +300,7 @@ grist.ready();
     store = _store(tmp_path)
     revision = _project(store, script=script)
     evidence = PreviewEvidenceStore()
-    manager = PreviewManager(store, evidence)
+    manager = PreviewManager(store, evidence, preview_timeout_seconds=0.01)
     session = await manager.start("preview-widget", "fixture", "sample")
 
     try:
@@ -282,6 +317,7 @@ grist.ready();
                 "data-pre-head-fetch", "wrapped"
             )
             await expect(body).to_have_attribute("data-mcp-gryster-handshake", "complete")
+            await asyncio.sleep(0.02)
             await browser.close()
     finally:
         await manager.stop_all()
@@ -305,7 +341,7 @@ grist.ready();
     store = _store(tmp_path)
     revision = _project(store, script=script)
     evidence = PreviewEvidenceStore()
-    manager = PreviewManager(store, evidence)
+    manager = PreviewManager(store, evidence, preview_timeout_seconds=0.01)
     session = await manager.start("preview-widget", "fixture", "sample")
 
     try:
@@ -321,6 +357,7 @@ grist.ready();
             await expect(frame.locator("body")).to_have_attribute(
                 "data-mcp-gryster-handshake", "complete"
             )
+            await asyncio.sleep(0.02)
             await browser.close()
     finally:
         await manager.stop_all()
@@ -359,7 +396,7 @@ grist.ready();
     store = _store(tmp_path)
     revision = _project(store, script=script)
     evidence = PreviewEvidenceStore()
-    manager = PreviewManager(store, evidence)
+    manager = PreviewManager(store, evidence, preview_timeout_seconds=0.02)
     session = await manager.start("preview-widget", "fixture", "sample")
 
     try:
@@ -371,6 +408,7 @@ grist.ready();
             await expect(frame.locator("body")).to_have_attribute(
                 "data-mcp-gryster-handshake", "complete"
             )
+            await asyncio.sleep(0.03)
             assert evidence.has_success("preview-widget", revision, "sample")
             await expect(frame.locator("body")).to_have_attribute(
                 "data-mcp-gryster-unsupported", "notARealMember"

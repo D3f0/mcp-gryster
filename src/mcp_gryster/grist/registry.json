@@ -1493,7 +1493,7 @@
     },
     {
       "name": "list_widgets",
-      "domain": "administration",
+      "domain": "schema",
       "effect": "read",
       "parameters": {},
       "result_kind": "json",
