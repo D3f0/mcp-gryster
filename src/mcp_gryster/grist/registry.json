@@ -1,0 +1,2902 @@
+{
+  "pygrister_version": "0.10.0",
+  "methods": [
+    {
+      "name": "add_cols",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "cols": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "name": {
+          "required": true,
+          "default": null
+        },
+        "pinned": {
+          "required": false,
+          "default": false
+        },
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_group",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "name": {
+          "required": true,
+          "default": null
+        },
+        "members": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_proposal",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "retracted": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_records",
+      "domain": "records",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "records": {
+          "required": true,
+          "default": null
+        },
+        "noparse": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "add_service_account",
+      "domain": "service_accounts",
+      "effect": "write",
+      "parameters": {
+        "expire": {
+          "required": true,
+          "default": null
+        },
+        "label": {
+          "required": false,
+          "default": ""
+        },
+        "description": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_tables",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "tables": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_update_cols",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "cols": {
+          "required": true,
+          "default": null
+        },
+        "noadd": {
+          "required": false,
+          "default": true
+        },
+        "noupdate": {
+          "required": false,
+          "default": true
+        },
+        "replaceall": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_update_records",
+      "domain": "records",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "records": {
+          "required": true,
+          "default": null
+        },
+        "noparse": {
+          "required": false,
+          "default": false
+        },
+        "onmany": {
+          "required": false,
+          "default": "first"
+        },
+        "noadd": {
+          "required": false,
+          "default": false
+        },
+        "noupdate": {
+          "required": false,
+          "default": false
+        },
+        "allow_empty_require": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_user",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "username": {
+          "required": true,
+          "default": null
+        },
+        "emails": {
+          "required": true,
+          "default": null
+        },
+        "formatted_name": {
+          "required": false,
+          "default": ""
+        },
+        "display_name": {
+          "required": false,
+          "default": ""
+        },
+        "lang": {
+          "required": false,
+          "default": "en"
+        },
+        "locale": {
+          "required": false,
+          "default": "en"
+        },
+        "photos": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_webhooks",
+      "domain": "webhooks",
+      "effect": "write",
+      "parameters": {
+        "webhooks": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "add_workspace",
+      "domain": "workspaces",
+      "effect": "write",
+      "parameters": {
+        "name": {
+          "required": true,
+          "default": null
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "apply_proposal",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "proposal_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "assign_doc",
+      "domain": "administration",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "bulk_users",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "operations": {
+          "required": true,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "compare_doc_history",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "left": {
+          "required": false,
+          "default": ""
+        },
+        "right": {
+          "required": false,
+          "default": ""
+        },
+        "max_rows": {
+          "required": false,
+          "default": 10
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "compare_docs",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "other": {
+          "required": true,
+          "default": null
+        },
+        "details": {
+          "required": false,
+          "default": false
+        },
+        "max_rows": {
+          "required": false,
+          "default": 10
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "copy_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "target_ws": {
+          "required": true,
+          "default": null
+        },
+        "target_name": {
+          "required": true,
+          "default": null
+        },
+        "template": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_apikey",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_column",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "col_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_doc_history",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "keep": {
+          "required": false,
+          "default": 1
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_group",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "group_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_myself",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "user": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": false
+    },
+    {
+      "name": "delete_rows",
+      "domain": "records",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "rows": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_service_account",
+      "domain": "service_accounts",
+      "effect": "write",
+      "parameters": {
+        "service_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_service_account_key",
+      "domain": "service_accounts",
+      "effect": "write",
+      "parameters": {
+        "service_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_snapshots",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "snapshot_ids": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_team",
+      "domain": "organizations",
+      "effect": "write",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_team_old",
+      "domain": "organizations",
+      "effect": "write",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_unused_attachments",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "expired_only": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_user",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "user_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_webhook",
+      "domain": "webhooks",
+      "effect": "write",
+      "parameters": {
+        "webhook_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "delete_workspace",
+      "domain": "workspaces",
+      "effect": "write",
+      "parameters": {
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_attachment",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "attachment_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "download_attachments",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": false,
+          "default": null
+        },
+        "format": {
+          "required": false,
+          "default": "tar"
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_csv",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "header": {
+          "required": false,
+          "default": "label"
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_excel",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "header": {
+          "required": false,
+          "default": "label"
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_schema",
+      "domain": "schema",
+      "effect": "read",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "header": {
+          "required": false,
+          "default": "label"
+        },
+        "filename": {
+          "required": false,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_sqlite",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "nohistory": {
+          "required": false,
+          "default": false
+        },
+        "template": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "download_table",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "header": {
+          "required": false,
+          "default": "label"
+        },
+        "format": {
+          "required": false,
+          "default": "csv"
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "file",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "empty_payloads_queue",
+      "domain": "webhooks",
+      "effect": "write",
+      "parameters": {
+        "webhook_id": {
+          "required": false,
+          "default": ""
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "enable_doc",
+      "domain": "administration",
+      "effect": "write",
+      "parameters": {
+        "enable": {
+          "required": false,
+          "default": true
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "enable_user",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "user_id": {
+          "required": true,
+          "default": null
+        },
+        "enable": {
+          "required": false,
+          "default": true
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "flush_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "fork_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_attachments",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "filter": {
+          "required": false,
+          "default": null
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "limit": {
+          "required": false,
+          "default": 0
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "list_cols",
+      "domain": "schema",
+      "effect": "read",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "hidden": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "list_doc_history",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_doc_users",
+      "domain": "access",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_groups",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "paginated",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_groups_raw",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_proposals",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "outgoing": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_records",
+      "domain": "records",
+      "effect": "read",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "filter": {
+          "required": false,
+          "default": null
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "limit": {
+          "required": false,
+          "default": 0
+        },
+        "hidden": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "list_roles",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "paginated",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_roles_raw",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_service_accounts",
+      "domain": "service_accounts",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_snapshots",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "raw": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_store_settings",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_tables",
+      "domain": "schema",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "list_team_sites",
+      "domain": "organizations",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_team_users",
+      "domain": "access",
+      "effect": "read",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_templates",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_users",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "paginated",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_users_raw",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_viewas_users",
+      "domain": "access",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_webhooks",
+      "domain": "webhooks",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "list_widgets",
+      "domain": "schema",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_workspace_users",
+      "domain": "access",
+      "effect": "read",
+      "parameters": {
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "list_workspaces",
+      "domain": "workspaces",
+      "effect": "read",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "move_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "ws_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "new_apikey",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "force": {
+          "required": false,
+          "default": true
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "pin_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "pin": {
+          "required": false,
+          "default": true
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "reload_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "replace_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "source_doc": {
+          "required": false,
+          "default": ""
+        },
+        "source_snapshot": {
+          "required": false,
+          "default": ""
+        },
+        "reset_tutorial": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "run_sql",
+      "domain": "sql",
+      "effect": "read",
+      "parameters": {
+        "sql": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "run_sql_with_args",
+      "domain": "sql",
+      "effect": "read",
+      "parameters": {
+        "sql": {
+          "required": true,
+          "default": null
+        },
+        "qargs": {
+          "required": true,
+          "default": null
+        },
+        "timeout": {
+          "required": false,
+          "default": 1000
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "search_groups",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "asc": {
+          "required": false,
+          "default": true
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        },
+        "attrib": {
+          "required": false,
+          "default": null
+        },
+        "no_attrib": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "paginated",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "search_groups_raw",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "asc": {
+          "required": false,
+          "default": true
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        },
+        "attrib": {
+          "required": false,
+          "default": null
+        },
+        "no_attrib": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "search_users",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "asc": {
+          "required": false,
+          "default": true
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        },
+        "attrib": {
+          "required": false,
+          "default": null
+        },
+        "no_attrib": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "paginated",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "search_users_raw",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "start": {
+          "required": false,
+          "default": 1
+        },
+        "chunk": {
+          "required": false,
+          "default": 10
+        },
+        "sort": {
+          "required": false,
+          "default": ""
+        },
+        "asc": {
+          "required": false,
+          "default": true
+        },
+        "filter": {
+          "required": false,
+          "default": ""
+        },
+        "attrib": {
+          "required": false,
+          "default": null
+        },
+        "no_attrib": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_apikey",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_attachment",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "attachment_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_attachment_store",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_doc",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "see_form",
+      "domain": "administration",
+      "effect": "read",
+      "parameters": {
+        "section_id": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_group",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "group_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_myself",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_profile",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_role",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "role_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_scim_config",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_scim_resources",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_scim_schemas",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_service_account",
+      "domain": "service_accounts",
+      "effect": "read",
+      "parameters": {
+        "service_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_session",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_session_users",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {},
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_team",
+      "domain": "organizations",
+      "effect": "read",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_team_usage",
+      "domain": "organizations",
+      "effect": "read",
+      "parameters": {
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_template",
+      "domain": "documents",
+      "effect": "read",
+      "parameters": {
+        "template_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_timing",
+      "domain": "administration",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_transfer_status",
+      "domain": "attachments",
+      "effect": "read",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_user",
+      "domain": "identity",
+      "effect": "read",
+      "parameters": {
+        "user_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "see_workspace",
+      "domain": "workspaces",
+      "effect": "read",
+      "parameters": {
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "set_recovery_mode",
+      "domain": "administration",
+      "effect": "write",
+      "parameters": {
+        "mode": {
+          "required": false,
+          "default": true
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "start_timing",
+      "domain": "administration",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "stop_timing",
+      "domain": "administration",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "transfer_attachments",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "trash_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "remove": {
+          "required": false,
+          "default": true
+        },
+        "permanent": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "trash_workspace",
+      "domain": "workspaces",
+      "effect": "write",
+      "parameters": {
+        "remove": {
+          "required": false,
+          "default": true
+        },
+        "permanent": {
+          "required": false,
+          "default": false
+        },
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_attachment_store",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "internal_store": {
+          "required": false,
+          "default": true
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_cols",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "cols": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_doc",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "new_name": {
+          "required": false,
+          "default": ""
+        },
+        "pinned": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_doc_users",
+      "domain": "access",
+      "effect": "write",
+      "parameters": {
+        "users": {
+          "required": true,
+          "default": null
+        },
+        "max": {
+          "required": false,
+          "default": "owners"
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_group",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "group_id": {
+          "required": true,
+          "default": null
+        },
+        "operations": {
+          "required": true,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_group_override",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "group_id": {
+          "required": true,
+          "default": null
+        },
+        "name": {
+          "required": true,
+          "default": null
+        },
+        "members": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_profile_locale",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "locale": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_profile_name",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "name": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_records",
+      "domain": "records",
+      "effect": "write",
+      "parameters": {
+        "table_id": {
+          "required": true,
+          "default": null
+        },
+        "records": {
+          "required": true,
+          "default": null
+        },
+        "noparse": {
+          "required": false,
+          "default": false
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "update_role",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "role_id": {
+          "required": true,
+          "default": null
+        },
+        "operations": {
+          "required": true,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_role_override",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "role_id": {
+          "required": true,
+          "default": null
+        },
+        "members": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_service_account",
+      "domain": "service_accounts",
+      "effect": "write",
+      "parameters": {
+        "service_id": {
+          "required": true,
+          "default": null
+        },
+        "expire": {
+          "required": false,
+          "default": ""
+        },
+        "label": {
+          "required": false,
+          "default": ""
+        },
+        "description": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_service_account_key",
+      "domain": "service_accounts",
+      "effect": "write",
+      "parameters": {
+        "service_id": {
+          "required": true,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_session_user",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "email": {
+          "required": true,
+          "default": null
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_tables",
+      "domain": "schema",
+      "effect": "write",
+      "parameters": {
+        "tables": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_team",
+      "domain": "organizations",
+      "effect": "write",
+      "parameters": {
+        "new_name": {
+          "required": true,
+          "default": null
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_team_users",
+      "domain": "access",
+      "effect": "write",
+      "parameters": {
+        "users": {
+          "required": true,
+          "default": null
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_user",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "user_id": {
+          "required": true,
+          "default": null
+        },
+        "operations": {
+          "required": true,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_user_override",
+      "domain": "identity",
+      "effect": "write",
+      "parameters": {
+        "user_id": {
+          "required": true,
+          "default": null
+        },
+        "username": {
+          "required": true,
+          "default": null
+        },
+        "emails": {
+          "required": true,
+          "default": null
+        },
+        "formatted_name": {
+          "required": false,
+          "default": ""
+        },
+        "display_name": {
+          "required": false,
+          "default": ""
+        },
+        "lang": {
+          "required": false,
+          "default": "en"
+        },
+        "locale": {
+          "required": false,
+          "default": "en"
+        },
+        "photos": {
+          "required": false,
+          "default": null
+        },
+        "schemas": {
+          "required": false,
+          "default": null
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_webhook",
+      "domain": "webhooks",
+      "effect": "write",
+      "parameters": {
+        "webhook_id": {
+          "required": true,
+          "default": null
+        },
+        "webhook": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_workspace",
+      "domain": "workspaces",
+      "effect": "write",
+      "parameters": {
+        "new_name": {
+          "required": true,
+          "default": null
+        },
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "update_workspace_users",
+      "domain": "access",
+      "effect": "write",
+      "parameters": {
+        "users": {
+          "required": true,
+          "default": null
+        },
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "upload_attachment",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "upload_attachments",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "filenames": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": true,
+      "supported": true
+    },
+    {
+      "name": "upload_restore_attachments",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "upload_sqlite",
+      "domain": "documents",
+      "effect": "write",
+      "parameters": {
+        "filename": {
+          "required": true,
+          "default": null
+        },
+        "target_docname": {
+          "required": true,
+          "default": null
+        },
+        "ws_id": {
+          "required": false,
+          "default": 0
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "verify_attachment_files",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    },
+    {
+      "name": "verify_attachment_usage",
+      "domain": "attachments",
+      "effect": "write",
+      "parameters": {
+        "doc_id": {
+          "required": false,
+          "default": ""
+        },
+        "team_id": {
+          "required": false,
+          "default": ""
+        }
+      },
+      "result_kind": "json",
+      "typed_tool": false,
+      "supported": true
+    }
+  ]
+}

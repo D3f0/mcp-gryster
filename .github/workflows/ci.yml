@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run ruff check .
+      - run: uv run mypy src tests integration
+      - run: uv run pytest -m "not integration"
+
+  integration:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -m integration -v
+
+  distribution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Resolve locked build and smoke dependencies
+        run: uv sync --locked
+      - name: Build wheel
+        run: uv build --wheel
+      - name: Prepare empty wheel uvx cache
+        run: |
+          cache="$RUNNER_TEMP/wheel-uvx-cache"
+          rm -rf "$cache"
+          mkdir -p "$cache"
+          echo "UV_CACHE_DIR=$cache" >> "$GITHUB_ENV"
+      - name: Verify clean uvx installation and CLI
+        run: |
+          wheel=$(printf '%s\n' dist/mcp_gryster-*.whl)
+          timeout 60s uvx --from "$wheel" mcp-gryster --help
+      - name: Initialize server and list tools over STDIO
+        run: |
+          wheel=$(printf '%s\n' dist/mcp_gryster-*.whl)
+          timeout 60s uv run python scripts/stdio_smoke.py "$wheel" --timeout 45

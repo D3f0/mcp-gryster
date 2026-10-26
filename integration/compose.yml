@@ -1,0 +1,24 @@
+services:
+  grist:
+    image: gristlabs/grist:1.7.19@sha256:a39b36a52059a72171d88803b8225f5a405001337717613299edfebe7c7096d3
+    environment:
+      APP_HOME_INTERNAL_URL: http://localhost:8484
+      GRIST_DEFAULT_EMAIL: integration@example.test
+      GRIST_FORCE_LOGIN: "true"
+      GRIST_IN_SERVICE: "true"
+      GRIST_SINGLE_ORG: integration
+      GRIST_SERVE_SAME_ORIGIN: "true"
+      GRIST_TEST_LOGIN: "true"
+    ports:
+      - "127.0.0.1::8484"
+    volumes:
+      - grist-data:/persist
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8484/status?ready=1"]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+      start_period: 10s
+
+volumes:
+  grist-data:
