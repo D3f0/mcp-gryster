@@ -10,6 +10,14 @@ For Grist SaaS, set `GRIST_API_KEY` and `GRIST_TEAM_SITE`; optional defaults inc
 
 ## Quick start
 
+Python 3.12 or newer is required. [Download the wheel from GitHub Pages](https://d3f0.github.io/mcp-gryster/). The Pages workflow rebuilds it on pushes to the default branch (`feat/mcp-gryster`), after verifying clean installation and STDIO tool discovery; it can also be run manually.
+
+Run the published wheel directly:
+
+```bash
+uvx --from https://d3f0.github.io/mcp-gryster/mcp_gryster-0.1.0-py3-none-any.whl mcp-gryster --help
+```
+
 Configure an MCP client to launch the default STDIO transport with `uvx`:
 
 ```json
@@ -17,7 +25,11 @@ Configure an MCP client to launch the default STDIO transport with `uvx`:
   "mcpServers": {
     "grist": {
       "command": "uvx",
-      "args": ["mcp-gryster"],
+      "args": [
+        "--from",
+        "https://d3f0.github.io/mcp-gryster/mcp_gryster-0.1.0-py3-none-any.whl",
+        "mcp-gryster"
+      ],
       "env": {
         "GRIST_API_KEY": "...",
         "GRIST_TEAM_SITE": "docs"
@@ -27,7 +39,7 @@ Configure an MCP client to launch the default STDIO transport with `uvx`:
 }
 ```
 
-Run `uvx mcp-gryster --help` to see transport and workspace options. Python 3.12 or newer is required.
+The `--help` output lists transport and workspace options. The versioned wheel URL changes when the package version changes; the Pages download page links the current build.
 
 Streamable HTTP is available with `--transport streamable-http --host 127.0.0.1 --port 8000`. It is restricted to loopback (`127.0.0.1`, `::1`, or `localhost`): configured bearer-token settings do not make public binding safe because authentication is not yet enforced end to end.
 

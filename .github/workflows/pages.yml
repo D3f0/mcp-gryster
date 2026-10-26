@@ -1,0 +1,62 @@
+name: Publish wheel to GitHub Pages
+
+on:
+  push:
+    branches: [feat/mcp-gryster]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - uses: actions/configure-pages@v5
+      - run: uv sync --locked
+      - name: Build wheel
+        run: uv build --wheel --out-dir _site
+      - name: Prepare empty wheel uvx cache
+        run: |
+          cache="$RUNNER_TEMP/wheel-uvx-cache"
+          mkdir -p "$cache"
+          echo "UV_CACHE_DIR=$cache" >> "$GITHUB_ENV"
+      - name: Verify clean wheel installation and CLI
+        run: |
+          wheel=$(printf '%s\n' _site/mcp_gryster-*.whl)
+          timeout 60s uvx --from "$wheel" mcp-gryster --help
+      - name: Initialize server and list tools over STDIO
+        run: |
+          wheel=$(printf '%s\n' _site/mcp_gryster-*.whl)
+          timeout 60s uv run python scripts/stdio_smoke.py "$wheel" --timeout 45
+      - name: Add download page
+        run: |
+          wheel=$(basename _site/mcp_gryster-*.whl)
+          printf '<!doctype html>\n<html lang="en"><meta charset="utf-8"><title>mcp-gryster wheel</title><h1>mcp-gryster</h1><p><a href="%s">Download %s</a></p></html>\n' "$wheel" "$wheel" > _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy wheel
+        id: deployment
+        uses: actions/deploy-pages@v4
